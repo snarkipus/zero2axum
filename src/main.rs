@@ -1,9 +1,10 @@
 #![allow(unused)]
 use axum::{
     extract::Query,
+    http::StatusCode,
     response::{Html, IntoResponse},
     routing::get,
-    Router, http::StatusCode,
+    Router,
 };
 use serde::Deserialize;
 use std::{net::SocketAddr, str::FromStr};
