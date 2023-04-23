@@ -5,9 +5,14 @@
 - [Rust Axum Full Course - Web Development](https://www.youtube.com/watch?v=XZtlD_m59sM)
 - [Building a Rust service with Nix](https://fasterthanli.me/series/building-a-rust-service-with-nix)
 
-## Notes
-Backend (Server): `cargo watch -q -c -w src/ -x run`
-Frontend (Client): `cargo watch -q -c -w tests/ -x "test -q quick_test -- --nocapture"
+## Watch Commands
+Backend (Server):
+
+`cargo watch -q -c -w src/ -x run`
+
+Frontend (Client):
+
+`cargo watch -q -c -w tests/ -x "test -q quick_test -- --nocapture"`
 
 ## Chapter 1
 - Toolchain: 1.69.0
@@ -24,3 +29,8 @@ Frontend (Client): `cargo watch -q -c -w tests/ -x "test -q quick_test -- --noca
 - Error Handling:
   - [Sentry](https://www.sentry.io)
   - color-eyre
+- Logs:
+  - tracing/tracing-subscriber
+  - serde, serde_json
+- Testing:
+  - httpc_test
