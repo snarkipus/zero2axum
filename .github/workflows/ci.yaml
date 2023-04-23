@@ -10,10 +10,14 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: rui314/setup-mold@v1
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Setup mold linker
+        uses: rui314/setup-mold@v1
       - name: Run tests
         run: cargo test
 
@@ -21,11 +25,16 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - uses: rui314/setup-mold@v1
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Setup mold linker
+        uses: rui314/setup-mold@v1
       - name: Enforce formatting
         run: cargo fmt --check
 
@@ -33,12 +42,16 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: rui314/setup-mold@v1
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Setup mold linker
+        uses: rui314/setup-mold@v1
       - name: Linting
         run: cargo clippy -- -D warnings
 
@@ -48,8 +61,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: rui314/setup-mold@v1
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Setup mold linker
+        uses: rui314/setup-mold@v1
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
