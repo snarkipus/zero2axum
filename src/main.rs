@@ -3,7 +3,7 @@ use axum::{
     extract::Query,
     response::{Html, IntoResponse},
     routing::get,
-    Router,
+    Router, http::StatusCode,
 };
 use serde::Deserialize;
 use std::{net::SocketAddr, str::FromStr};
@@ -34,7 +34,9 @@ async fn main() -> color_eyre::Result<()> {
     ));
     // endregion: --- Sentry.io error reporting
 
-    let app = Router::new().route("/", get(handler_hello));
+    let app = Router::new()
+        .route("/", get(handler_hello))
+        .route("/health_check", get(handler_health_check));
 
     let quit_sig = async {
         tokio::signal::ctrl_c().await;
@@ -63,4 +65,10 @@ async fn handler_hello(Query(params): Query<HelloParams>) -> impl IntoResponse {
 
     let name = params.name.as_deref().unwrap_or("Frank");
     Html(format!("Hello <strong>{name}</strong>"))
+}
+
+async fn handler_health_check() -> impl IntoResponse {
+    info!("{:<8} - handler_health_check", "HANDLER");
+
+    StatusCode::OK
 }
