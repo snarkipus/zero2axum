@@ -2097,6 +2097,8 @@ dependencies = [
  "axum",
  "color-eyre",
  "httpc-test",
+ "hyper",
+ "reqwest",
  "sentry",
  "serde",
  "serde_json",
