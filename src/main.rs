@@ -1,6 +1,6 @@
 use std::net::TcpListener;
 
-use tracing::warn;
+use tracing::{info, warn};
 
 use zero2axum::run;
 
@@ -12,10 +12,11 @@ async fn main() -> color_eyre::Result<()> {
     };
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
-    // let port = listener.local_addr().unwrap().port();
+    let port = listener.local_addr().unwrap().port();
     let s = run(listener).unwrap_or_else(|e| {
         panic!("Failed to start server: {}", e);
     });
+    info!("Server listening on http://127.0.0.1:{port}");
     s.with_graceful_shutdown(quit_sig).await?;
 
     Ok(())

@@ -1,5 +1,7 @@
 use std::net::TcpListener;
 
+use tracing::info;
+
 #[tokio::test]
 async fn health_check_works() {
     // Arrange
@@ -24,6 +26,7 @@ fn spawn_app() -> String {
     let s = zero2axum::run(listener).unwrap_or_else(|e| {
         panic!("Failed to start server: {}", e);
     });
+    info!("Server listening on http://127.0.0.1:{port}");
     let _ = tokio::spawn(s);
     format!("http://127.0.0.1:{port}")
 }
