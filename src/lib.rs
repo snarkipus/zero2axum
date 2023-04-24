@@ -60,10 +60,10 @@ pub fn run(
         .route("/", get(handler_hello))
         .route("/health_check", get(handler_health_check));
 
-    let addr = listener.local_addr().unwrap_or_else(|e| {
-        panic!("Failed to get local address: {}", e);
-    });
-    info!("Listening on http://{addr}");
-    let server = axum::Server::bind(&addr).serve(app.into_make_service());
+    let server = axum::Server::from_tcp(listener)
+        .unwrap_or_else(|e| {
+            panic!("Failed to bind random port: {}", e);
+        })
+        .serve(app.into_make_service());
     Ok(server)
 }

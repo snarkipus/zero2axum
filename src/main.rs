@@ -11,7 +11,7 @@ async fn main() -> color_eyre::Result<()> {
         warn!("Received Ctrl-C, shutting down gracefully...");
     };
 
-    let listener = TcpListener::bind("127.0.0.1:3000").expect("Failed to bind random port");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     // let port = listener.local_addr().unwrap().port();
     let s = run(listener).unwrap_or_else(|e| {
         panic!("Failed to start server: {}", e);
