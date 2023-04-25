@@ -1,6 +1,18 @@
+use rstest::*;
 use std::net::TcpListener;
-
 use tracing::info;
+
+#[allow(clippy::let_underscore_future)]
+fn spawn_app() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
+    let port = listener.local_addr().unwrap().port();
+    let s = zero2axum::run(listener).unwrap_or_else(|e| {
+        panic!("Failed to start server: {}", e);
+    });
+    info!("Server listening on http://127.0.0.1:{port}");
+    let _ = tokio::spawn(s);
+    format!("http://127.0.0.1:{port}")
+}
 
 #[tokio::test]
 async fn health_check_works() {
@@ -20,13 +32,53 @@ async fn health_check_works() {
     assert_eq!(Some(0), response.content_length());
 }
 
-fn spawn_app() -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
-    let port = listener.local_addr().unwrap().port();
-    let s = zero2axum::run(listener).unwrap_or_else(|e| {
-        panic!("Failed to start server: {}", e);
-    });
-    info!("Server listening on http://127.0.0.1:{port}");
-    let _ = tokio::spawn(s);
-    format!("http://127.0.0.1:{port}")
+#[tokio::test]
+async fn subscribe_returns_a_200_for_valid_form_data() {
+    // Arrange
+    let address = spawn_app();
+    let client = reqwest::Client::new();
+
+    // Act
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let response = client
+        .post(&format!("{}/subscribe", &address))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    // Assert
+    assert_eq!(200, response.status().as_u16());
+}
+
+#[rstest]
+#[case("", "missing both name and email")]
+#[case("name=le%20guin", "missing the email")]
+#[case("email=ursula_le_guin%40gmail.com", "missing the name")]
+#[tokio::test]
+async fn subscribe_returns_a_422_when_data_is_missing(
+    #[case] invalid_body: &str,
+    #[case] error_message: &str,
+) {
+    // Arrange
+    let address = spawn_app();
+    let client = reqwest::Client::new();
+
+    // Act
+    let response = client
+        .post(&format!("{}/subscribe", &address))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(invalid_body.to_string())
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    // Assert
+    assert_eq!(
+        422,
+        response.status().as_u16(),
+        "The API did not fail with 400 Bad Request when the payload was {}.",
+        error_message
+    );
 }

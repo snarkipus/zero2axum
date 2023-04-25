@@ -5,6 +5,11 @@
 - [Rust Axum Full Course - Web Development](https://www.youtube.com/watch?v=XZtlD_m59sM)
 - [Building a Rust service with Nix](https://fasterthanli.me/series/building-a-rust-service-with-nix)
 
+## Solutions
+- [Zero To Production (with axum)](https://github.com/mattiapenati/zero2prod)
+- [An implementation of Zero To Production In Rust using Axum instead of Actix](https://github.com/SaadiSave/zero2prod)
+
+
 ## Watch Commands
 Backend (Server):
 
