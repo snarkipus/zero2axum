@@ -2,8 +2,9 @@ use std::{net::TcpListener, str::FromStr};
 
 use tracing::{info, warn, Level};
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
+use zero2axum::startup::run;
 
-use zero2axum::run;
+
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {

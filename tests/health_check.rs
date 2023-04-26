@@ -2,18 +2,21 @@ use rstest::*;
 use std::net::TcpListener;
 use tracing::info;
 
+// region: -- spawn_app
 #[allow(clippy::let_underscore_future)]
 fn spawn_app() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
-    let s = zero2axum::run(listener).unwrap_or_else(|e| {
+    let s = zero2axum::startup::run(listener).unwrap_or_else(|e| {
         panic!("Failed to start server: {}", e);
     });
     info!("Server listening on http://127.0.0.1:{port}");
     let _ = tokio::spawn(s);
     format!("http://127.0.0.1:{port}")
 }
+// endregion: -- spawn_app
 
+// region: -- GET: 200 OK
 #[tokio::test]
 async fn health_check_works() {
     // Arrange
@@ -31,7 +34,9 @@ async fn health_check_works() {
     assert!(response.status().is_success());
     assert_eq!(Some(0), response.content_length());
 }
+// endregion: -- GET: 200 OK
 
+// region: -- POST Form: 200 OK
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
@@ -51,7 +56,9 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     // Assert
     assert_eq!(200, response.status().as_u16());
 }
+// endregion: -- POST Form: 200 OK
 
+// region: -- POST Form: 422 Unprocessable Entity
 #[rstest]
 #[case("", "missing both name and email")]
 #[case("name=le%20guin", "missing the email")]
@@ -78,7 +85,8 @@ async fn subscribe_returns_a_422_when_data_is_missing(
     assert_eq!(
         422,
         response.status().as_u16(),
-        "The API did not fail with 400 Bad Request when the payload was {}.",
+        "The API did not fail with 422 Bad Request when the payload was {}.",
         error_message
     );
 }
+// endregion: -- POST Form: 422 Unprocessable Entity

@@ -1,0 +1,6 @@
+[db]
+    url = "localhost:8000"
+    username = "surreal"
+    password = "password"
+    ns = "default"
+    db = "newsletter"

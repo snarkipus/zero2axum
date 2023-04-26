@@ -27,9 +27,9 @@ async fn quick_test() -> color_eyre::Result<()> {
         .await
         .expect("Failed to execute request.");
     println!("\n=== Response for POST http://127.0.0.1:3000/subscribe");
-    println!("=> Status \t: {}", response.status());
-    println!("=> Headers \t: {:#?}", response.headers());
-    println!("=> Body \t: {:#?}", response.text().await?);
+    println!("=> Status \t : {}", response.status());
+    println!("=> Headers \t : {:#?}", response.headers());
+    println!("=> Response Body : {:#?}", response.text().await?);
 
     Ok(())
 }
