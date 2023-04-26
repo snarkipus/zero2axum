@@ -4,6 +4,7 @@ use serde::Deserialize;
 use tracing::info;
 
 // region: -- Subscribe Handler
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct FormData {
     email: String,

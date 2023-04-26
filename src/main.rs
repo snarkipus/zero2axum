@@ -4,8 +4,6 @@ use tracing::{info, warn, Level};
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 use zero2axum::startup::run;
 
-
-
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     // region: -- Tracing: Initialize
