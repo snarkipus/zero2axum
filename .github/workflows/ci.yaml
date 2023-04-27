@@ -25,7 +25,7 @@ jobs:
 
       - name: Start SurrealDB
         run: 
-          surrealdb start -u surreal -p password
+          surreal start -u surreal -p password
 
       - name: Install surrealdb-migrations
         run: 
