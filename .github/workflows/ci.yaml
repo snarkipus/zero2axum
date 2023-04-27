@@ -27,9 +27,9 @@ jobs:
         run: 
           surreal start -u surreal -p password&
 
-      - name: Install surrealdb-migrations
-        run: 
-          cargo install surrealdb-migrations
+      # - name: Install surrealdb-migrations
+      #   run: 
+      #     cargo install surrealdb-migrations
 
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
