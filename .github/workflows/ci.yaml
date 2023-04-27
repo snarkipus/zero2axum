@@ -12,17 +12,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
-
       - name: Download SurrealDB
         run: 
           curl -sSf https://install.surrealdb.com | sh
-
       - name: Start SurrealDB
         run: 
           surreal start -u surreal -p password&
@@ -33,12 +29,10 @@ jobs:
 
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
-
       - name: Setup mold linker
         uses: rui314/setup-mold@v1
-
       - name: Run tests
-        run: cargo test -- features ci
+        run: cargo test
 
   fmt:
     name: Rustfmt
@@ -84,12 +78,25 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
+      - name: Download SurrealDB
+        run: 
+          curl -sSf https://install.surrealdb.com | sh
+      - name: Start SurrealDB
+        run: 
+          surreal start -u surreal -p password&
+
+      # - name: Install surrealdb-migrations
+      #   run: 
+      #     cargo install surrealdb-migrations
+
+      - name: Migrate database
+        run: SKIP_DOCKER=true ./scripts/init_db.sh
       - name: Setup mold linker
         uses: rui314/setup-mold@v1
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info --features ci
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:

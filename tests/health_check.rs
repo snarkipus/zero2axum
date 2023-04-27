@@ -27,7 +27,7 @@ async fn health_check_works() {
         "{}:{}",
         configuration.database.host, configuration.database.port
     );
-    let db = Surreal::new::<Ws>(connection_string)
+    let _db = Surreal::new::<Ws>(connection_string)
         .await
         .expect("Failed to connect to SurrealDB.");
     let address = spawn_app();
