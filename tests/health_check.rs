@@ -1,6 +1,8 @@
 use rstest::*;
 use std::net::TcpListener;
+use surrealdb::{engine::remote::ws::Ws, opt::auth::Root, Surreal};
 use tracing::info;
+use zero2axum::{configuration::get_configuration, routes::FormData};
 
 // region: -- spawn_app
 #[allow(clippy::let_underscore_future)]
@@ -20,6 +22,14 @@ fn spawn_app() -> String {
 #[tokio::test]
 async fn health_check_works() {
     // Arrange
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let connection_string = format!(
+        "{}:{}",
+        configuration.database.host, configuration.database.port
+    );
+    let db = Surreal::new::<Ws>(connection_string)
+        .await
+        .expect("Failed to connect to SurrealDB.");
     let address = spawn_app();
     let client = reqwest::Client::new();
 
@@ -40,6 +50,27 @@ async fn health_check_works() {
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let connection_string = format!(
+        "{}:{}",
+        configuration.database.host, configuration.database.port
+    );
+    let db = Surreal::new::<Ws>(connection_string)
+        .await
+        .expect("Failed to connect to SurrealDB.");
+
+    db.signin(Root {
+        username: "surreal",
+        password: "password",
+    })
+    .await
+    .expect("Failed to signin.");
+
+    db.use_ns("default")
+        .use_db("newsletter")
+        .await
+        .expect("Failed to use db.");
+
     let address = spawn_app();
     let client = reqwest::Client::new();
 
@@ -55,6 +86,14 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     // Assert
     assert_eq!(200, response.status().as_u16());
+
+    let saved: FormData = db
+        .select(("email", "name"))
+        .await
+        .expect("Failed to fetch saved subscription.");
+
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.name, "le guin");
 }
 // endregion: -- POST Form: 200 OK
 

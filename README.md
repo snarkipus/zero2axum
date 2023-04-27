@@ -11,6 +11,8 @@
 - [Beyond Surreal? A closer look at NewSQL Relational Data](https://www.youtube.com/watch?v=LCAIkx1p1k0)
 - [Testing SurrealDB](https://dev.to/ndrean/testing-surrealdb-1kjl)
 - [SurrealDB: Your Ultimate Guide to Smooth Installation and Configuration](https://travishorn.com/surrealdb-your-ultimate-guide-to-smooth-installation-and-configuration)
+- [Awesome Surreal](https://github.com/surrealdb/awesome-surreal)
+- [AxumSessions](https://github.com/AscendingCreations/AxumSessions)
 ### DB Utilities
 - [surrealdb-migrations](https://github.com/Odonno/surrealdb-migrations/)
 - [Surrealist DB Explorer](https://github.com/StarlaneStudios/Surrealist)
@@ -29,6 +31,7 @@
 | tracing | [0.1.37](https://docs.rs/tracing/0.1.37/tracing/) |
 | color_eyre | [0.6.2](https://docs.rs/color-eyre/0.6.2/color_eyre/) |
 | rstest | [0.17.0](https://docs.rs/rstest/0.17.0/rstest/) |
+| surrealdb | [1.0.0-beta.9](https://docs.rs/surrealdb/1.0.0-beta.9+20230402/surrealdb/) |
 
 ## Watch Commands
 Backend (Server):
@@ -59,3 +62,5 @@ Frontend (Client):
   - serde, serde_json
 - Testing:
   - httpc_test, rstest
+- Database:
+  - SurrealDB, [surrealdb-migrations](https://github.com/Odonno/surrealdb-migrations)

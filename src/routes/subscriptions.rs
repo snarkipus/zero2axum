@@ -7,8 +7,8 @@ use tracing::info;
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct FormData {
-    email: String,
-    name: String,
+    pub email: String,
+    pub name: String,
 }
 
 pub async fn handler_subscribe(Form(data): Form<FormData>) -> impl IntoResponse {

@@ -9,15 +9,36 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    services:
+      surrealdb:
+        image: surrealdb:latest
+        ports:
+          - 8000:8000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
+
+      - name: Download SurrealDB
+        run: 
+          curl -sSf https://install.surrealdb.com | sh
+
+      - name: Start SurrealDB
+        run: 
+          surrealdb start -u surreal -p password
+
+      - name: Install surrealdb-migrations
+        run: 
+          cargo install surrealdb-migrations
+
       - name: Setup mold linker
         uses: rui314/setup-mold@v1
+
       - name: Run tests
         run: cargo test -- features ci
 

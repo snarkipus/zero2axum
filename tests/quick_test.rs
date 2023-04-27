@@ -1,11 +1,14 @@
 #![allow(unused)]
 
 use serde_json::json;
+use zero2axum::configuration::get_configuration;
 
 #[tokio::test]
 #[cfg_attr(feature = "ci", ignore)]
 async fn quick_test() -> color_eyre::Result<()> {
-    let hc = httpc_test::new_client("http://127.0.0.1:3000")?;
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let address = format!("http://127.0.0.1:{}", configuration.application_port);
+    let hc = httpc_test::new_client(&address)?;
 
     // hello handler tests
     hc.do_get("/").await?.print().await?;
@@ -20,13 +23,13 @@ async fn quick_test() -> color_eyre::Result<()> {
     // let body = "name=le%20guin";
     let client = reqwest::Client::new();
     let response = client
-        .post(&format!("{}/subscribe", "http://127.0.0.1:3000"))
+        .post(&format!("{}/subscribe", &address))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
         .await
         .expect("Failed to execute request.");
-    println!("\n=== Response for POST http://127.0.0.1:3000/subscribe");
+    println!("\n=== Response for POST http://{}/subscribe", &address);
     println!("=> Status \t : {}", response.status());
     println!("=> Headers \t : {:#?}", response.headers());
     println!("=> Response Body : {:#?}", response.text().await?);

@@ -2,7 +2,7 @@ use std::{net::TcpListener, str::FromStr};
 
 use tracing::{info, warn, Level};
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
-use zero2axum::startup::run;
+use zero2axum::{configuration::get_configuration, startup::run};
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
@@ -33,7 +33,9 @@ async fn main() -> color_eyre::Result<()> {
         warn!("Received Ctrl-C, shutting down gracefully...");
     };
 
-    let listener = TcpListener::bind("127.0.0.1:3000").expect("Failed to bind to port");
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let address = format!("127.0.0.1:{}", configuration.application_port);
+    let listener = TcpListener::bind(address).expect("Failed to bind to port");
     let port = listener.local_addr().unwrap().port();
     let s = run(listener).unwrap_or_else(|e| {
         panic!("Failed to start server: {}", e);
