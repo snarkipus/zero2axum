@@ -9,11 +9,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    services:
-      surrealdb:
-        image: surrealdb:latest
-        ports:
-          - 8000:8000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
