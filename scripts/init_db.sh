@@ -8,10 +8,10 @@ if ! [ -x "$(command -v surreal)" ]; then
   exit 1
 fi
 
-if ! [ -x "$(command -v surrealdb-migrations)" ]; then
-  echo 'Error: surrealdb-migrations is not installed.' >&2
-  exit 1
-fi
+# if ! [ -x "$(command -v surrealdb-migrations)" ]; then
+#   echo 'Error: surrealdb-migrations is not installed.' >&2
+#   exit 1
+# fi
 
 DB_USER="${SURREAL_USER:=surreal}"
 DB_PASSWORD="${SURREAL_PASSWORD:=password}"
