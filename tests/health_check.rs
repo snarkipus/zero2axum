@@ -6,10 +6,10 @@ use zero2axum::{configuration::get_configuration, routes::FormData};
 
 // region: -- spawn_app
 #[allow(clippy::let_underscore_future)]
-fn spawn_app() -> String {
+async fn spawn_app() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
-    let s = zero2axum::startup::run(listener).unwrap_or_else(|e| {
+    let s = zero2axum::startup::run(listener).await.unwrap_or_else(|e| {
         panic!("Failed to start server: {}", e);
     });
     info!("Server listening on http://127.0.0.1:{port}");
@@ -30,7 +30,7 @@ async fn health_check_works() {
     let _db = Surreal::new::<Ws>(connection_string)
         .await
         .expect("Failed to connect to SurrealDB.");
-    let address = spawn_app();
+    let address = spawn_app().await;
     let client = reqwest::Client::new();
 
     // Act
@@ -71,7 +71,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
         .await
         .expect("Failed to use db.");
 
-    let address = spawn_app();
+    let address = spawn_app().await;
     let client = reqwest::Client::new();
 
     // Act
@@ -108,7 +108,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(
     #[case] error_message: &str,
 ) {
     // Arrange
-    let address = spawn_app();
+    let address = spawn_app().await;
     let client = reqwest::Client::new();
 
     // Act

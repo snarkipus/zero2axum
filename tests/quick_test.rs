@@ -33,6 +33,7 @@ async fn quick_test() -> color_eyre::Result<()> {
     println!("=> Status \t : {}", response.status());
     println!("=> Headers \t : {:#?}", response.headers());
     println!("=> Response Body : {:#?}", response.text().await?);
+    println!("===");
 
     Ok(())
 }

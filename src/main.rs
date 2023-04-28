@@ -1,5 +1,4 @@
 use std::{net::TcpListener, str::FromStr};
-
 use tracing::{info, warn, Level};
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 use zero2axum::{configuration::get_configuration, startup::run};
@@ -37,7 +36,7 @@ async fn main() -> color_eyre::Result<()> {
     let address = format!("127.0.0.1:{}", configuration.application_port);
     let listener = TcpListener::bind(address).expect("Failed to bind to port");
     let port = listener.local_addr().unwrap().port();
-    let s = run(listener).unwrap_or_else(|e| {
+    let s = run(listener).await.unwrap_or_else(|e| {
         panic!("Failed to start server: {}", e);
     });
     info!("Server listening on http://127.0.0.1:{port}");

@@ -12,7 +12,7 @@
 - [Testing SurrealDB](https://dev.to/ndrean/testing-surrealdb-1kjl)
 - [SurrealDB: Your Ultimate Guide to Smooth Installation and Configuration](https://travishorn.com/surrealdb-your-ultimate-guide-to-smooth-installation-and-configuration)
 - [Awesome Surreal](https://github.com/surrealdb/awesome-surreal)
-- [AxumSessions](https://github.com/AscendingCreations/AxumSessions)
+- [Concurrency Example](https://github.com/surrealdb/surrealdb/blob/main/lib/examples/concurrency/main.rs)
 ### DB Utilities
 - [surrealdb-migrations](https://github.com/Odonno/surrealdb-migrations/)
 - [Surrealist DB Explorer](https://github.com/StarlaneStudios/Surrealist)

@@ -5,18 +5,42 @@ use axum::{
     Router, Server,
 };
 use hyper::{server::conn::AddrIncoming, Body};
+use surrealdb::{engine::remote::ws::Ws, opt::auth::Root, Surreal};
 
-use crate::routes::{handler_health_check, handler_hello, handler_subscribe};
+use crate::{configuration::*, routes};
 
-pub fn run(
+pub async fn run(
     listener: TcpListener,
 ) -> Result<Server<AddrIncoming, IntoMakeService<Router<(), Body>>>, std::io::Error> {
-    let app = Router::new()
-        .route("/", get(handler_hello))
-        .route("/health_check", get(handler_health_check))
-        .route("/subscribe", post(handler_subscribe));
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let connection_string = format!(
+        "{}:{}",
+        configuration.database.host, configuration.database.port
+    );
 
-    let server = axum::Server::from_tcp(listener)
+    let db = Surreal::new::<Ws>(connection_string)
+        .await
+        .expect("Failed to connect to SurrealDB.");
+
+    db.signin(Root {
+        username: &configuration.database.username,
+        password: &configuration.database.password,
+    })
+    .await
+    .expect("Failed to signin.");
+
+    db.use_ns("default")
+        .use_db("newsletter")
+        .await
+        .expect("Failed to use database.");
+
+    let app = Router::new()
+        .route("/", get(routes::handler_hello))
+        .route("/health_check", get(routes::handler_health_check))
+        .route("/subscribe", post(routes::handler_subscribe))
+        .with_state(db);
+
+    let server = Server::from_tcp(listener)
         .unwrap_or_else(|e| {
             panic!("Failed to bind random port: {}", e);
         })
