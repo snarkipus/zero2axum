@@ -1,5 +1,5 @@
-use axum::{extract::State, response::IntoResponse, Form};
-use hyper::StatusCode;
+use crate::error::{Error, Result};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Form};
 use serde::{Deserialize, Serialize};
 use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
 use tracing::info;
@@ -22,19 +22,25 @@ struct Subscription {
 pub async fn handler_subscribe(
     State(db): State<Surreal<Client>>,
     Form(data): Form<FormData>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse> {
     info!("{:<8} - handler_subscribe - {data:?}", "HANDLER");
 
     let sql = "INSERT INTO subscriptions (email, name, subscribed_at) VALUES ($email, $name, $subscribed_at)";
 
-    let _results = db
+    let results = db
         .query(sql)
         .bind(("email", data.email))
         .bind(("name", data.name))
         .bind(("subscribed_at", chrono::Utc::now().to_rfc3339()))
         .await
-        .expect("Failed to execute query.");
+        .unwrap();
 
-    StatusCode::OK
+    match results.check() {
+        Ok(_) => Ok(StatusCode::OK),
+        Err(e) => {
+            dbg!(&e);
+            Err(Error::SurrealDBError)
+        }
+    }
 }
 // endregion: -- Subscribe Handler

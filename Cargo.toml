@@ -27,6 +27,8 @@ tracing-subscriber = { version = "0.3.17", features = ["json"] }
 tracing-test = "0.2.4"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4.22", default-features = false, features = ["clock"] }
+strum_macros = "0.24.3"
+surrealdb-migrations = "0.9.4"
 
 [dev-dependencies]
 httpc-test = "0.1.1"

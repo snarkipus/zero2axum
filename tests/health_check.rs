@@ -5,7 +5,9 @@ use surrealdb::{
     opt::auth::Root,
     Surreal,
 };
+use surrealdb_migrations::{SurrealdbConfiguration, SurrealdbMigrations};
 use tracing::info;
+use uuid::Uuid;
 use zero2axum::{configuration::get_configuration, routes::FormData};
 
 pub struct TestApp {
@@ -17,11 +19,21 @@ pub struct TestApp {
 #[allow(clippy::let_underscore_future)]
 async fn spawn_app() -> TestApp {
     // region: -- SurrealDB: Initialize
-    let configuration = get_configuration().expect("Failed to read configuration.");
+    let mut configuration = get_configuration().expect("Failed to read configuration.");
+
+    configuration.database.database_name = Uuid::new_v4().to_string();
+
     let connection_string = format!(
         "{}:{}",
         configuration.database.host, configuration.database.port
     );
+
+    let mut db_configuration = SurrealdbConfiguration::default();
+    db_configuration.url = Some(connection_string.clone());
+    db_configuration.ns = Some("default".to_string());
+    db_configuration.db = Some(configuration.database.database_name.clone());
+    db_configuration.username = Some(configuration.database.username.clone());
+    db_configuration.password = Some(configuration.database.password.clone());
 
     let db = Surreal::new::<Ws>(connection_string)
         .await
@@ -35,9 +47,13 @@ async fn spawn_app() -> TestApp {
     .expect("Failed to signin.");
 
     db.use_ns("default")
-        .use_db("newsletter")
+        .use_db(configuration.database.database_name)
         .await
         .expect("Failed to use database.");
+
+    configure_database(db_configuration)
+        .await
+        .expect("Failed to configure database.");
     // endregion: --- SurrealDB: Initialize
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
@@ -53,6 +69,15 @@ async fn spawn_app() -> TestApp {
     TestApp { address, db }
 }
 // endregion: -- spawn_app
+
+// region: -- Migrations
+pub async fn configure_database(config: SurrealdbConfiguration) -> color_eyre::Result<()> {
+    SurrealdbMigrations::new(config)
+        .up()
+        .await
+        .expect("Failed to run migrations.");
+    Ok(())
+}
 
 // region: -- GET: 200 OK
 #[tokio::test]

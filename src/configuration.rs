@@ -13,6 +13,20 @@ pub struct DatabaseSettings {
     pub database_name: String,
 }
 
+impl DatabaseSettings {
+    // region: -- connection_string
+    pub fn connection_string(&self) -> String {
+        format!("http://{}:{}/", self.host, self.port)
+    }
+    // endregion: -- connection_string
+
+    // region: -- connection_string_without_db
+    pub fn connection_string_without_db(&self) -> String {
+        format!("http://{}:{}/", self.host, self.port)
+    }
+    // endregion: -- connection_string_without_db
+}
+
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {
     // Initialize our configuraiton reader
     let settings = config::Config::builder()
