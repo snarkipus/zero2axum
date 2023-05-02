@@ -76,8 +76,10 @@ pub async fn configure_database(config: SurrealdbConfiguration) -> color_eyre::R
         .up()
         .await
         .expect("Failed to run migrations.");
+
     Ok(())
 }
+// endregion: -- Migrations
 
 // region: -- GET: 200 OK
 #[tokio::test]
@@ -126,7 +128,6 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
         .query(sql)
         .await
         .expect("Failed to fetch saved subscription.");
-    dbg!(&res);
 
     let saved: Option<FormData> = res.take(0).unwrap();
     match saved {
