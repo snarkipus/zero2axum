@@ -42,7 +42,7 @@ async fn main() -> color_eyre::Result<()> {
         .expect("Failed to use database.");
     // endregion: --- SurrealDB: Initialize
 
-    let address = format!("127.0.0.1:{}", configuration.application_port);
+    let address = format!("127.0.0.1:{}", configuration.application.port);
     let listener = TcpListener::bind(address).expect("Failed to bind to port");
     let port = listener.local_addr().unwrap().port();
 

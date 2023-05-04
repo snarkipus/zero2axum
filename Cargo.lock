@@ -3169,62 +3169,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "surrealdb"
-version = "1.0.0-beta.9+20230402"
-source = "git+https://github.com/surrealdb/surrealdb/#eeb46468aa96977edd7a3dd2e2c5b50133555a54"
-dependencies = [
- "addr",
- "any_ascii",
- "argon2",
- "async-channel",
- "async-executor",
- "async-recursion",
- "bcrypt",
- "bigdecimal",
- "bung",
- "chrono",
- "dmp",
- "flume",
- "futures",
- "futures-concurrency",
- "fuzzy-matcher",
- "geo",
- "indexmap",
- "lexicmp",
- "log",
- "md-5",
- "nanoid",
- "nom",
- "once_cell",
- "pbkdf2",
- "pharos",
- "pin-project-lite",
- "rand",
- "regex",
- "reqwest",
- "rustls",
- "scrypt",
- "semver",
- "serde",
- "serde_json",
- "sha-1",
- "sha2",
- "storekey",
- "surrealdb-derive",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "trice",
- "ulid",
- "url",
- "uuid",
- "wasm-bindgen-futures",
- "wasmtimer",
- "ws_stream_wasm",
-]
-
-[[package]]
 name = "surrealdb-derive"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3252,7 +3196,7 @@ dependencies = [
  "rust-ini",
  "serde",
  "serde_json",
- "surrealdb 1.0.0-beta.9+20230402 (registry+https://github.com/rust-lang/crates.io-index)",
+ "surrealdb",
  "tokio",
 ]
 
@@ -4001,19 +3945,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmtimer"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f656cd8858a5164932d8a90f936700860976ec21eb00e0fe2aa8cab13f6b4cf"
-dependencies = [
- "futures",
- "js-sys",
- "parking_lot",
- "pin-utils",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "web-sys"
 version = "0.3.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4295,7 +4226,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum_macros",
- "surrealdb 1.0.0-beta.9+20230402 (git+https://github.com/surrealdb/surrealdb/)",
+ "surrealdb",
  "surrealdb-migrations",
  "tokio",
  "tower-http",

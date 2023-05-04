@@ -65,9 +65,13 @@ Frontend (Client):
 - Database:
   - SurrealDB, [surrealdb-migrations](https://github.com/Odonno/surrealdb-migrations)
 
-  ## Chapter 4
-  - Telemetry:
-    - Tracing, Tracing-Subscriber
-    - [ ] TODO: OpenTelemetry w/Honeycomb: [Honeycomb.io](https://ui.honeycomb.io)
-    - [ ] TODO: Verify Sentry (will address with error handling - it's a mess right now)
+## Chapter 4
+- Telemetry:
+  - [ ] TODO: OpenTelemetry w/Honeycomb: [Honeycomb.io](https://ui.honeycomb.io)
+  - [ ] TODO: Verify Sentry (will address with error handling - it's a mess right now)
+
+## Chapter 5
+- A bit different w/SurrealDB
+  - No offline compile-time verification
+  - No 'lazy' connection to SurrealDB (would require refactoring initialization code to endpoint handler - doable, but dumb)
     
