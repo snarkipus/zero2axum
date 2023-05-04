@@ -3236,9 +3236,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-migrations"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d1d60b8f3b59ba8226e26ed1ae4df6ada82e2c945f11226e8090609c2f72489"
+checksum = "09c89dcfec4d723729930a19b609dd4b2c8a3b4dbbd4c32e0c3732618e835e83"
 dependencies = [
  "anyhow",
  "chrono",

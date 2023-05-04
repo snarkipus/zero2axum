@@ -68,4 +68,6 @@ Frontend (Client):
   ## Chapter 4
   - Telemetry:
     - Tracing, Tracing-Subscriber
-    - OpenTelemetry w/Honeycomb: [Honeycomb.io](https://ui.honeycomb.io)
+    - [ ] TODO: OpenTelemetry w/Honeycomb: [Honeycomb.io](https://ui.honeycomb.io)
+    - [ ] TODO: Verify Sentry (will address with error handling - it's a mess right now)
+    
