@@ -22,11 +22,6 @@ jobs:
       - name: Start SurrealDB
         run: 
           surreal start -u surreal -p password&
-
-      # - name: Install surrealdb-migrations
-      #   run: 
-      #     cargo install surrealdb-migrations
-
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
       - name: Setup mold linker
@@ -84,11 +79,6 @@ jobs:
       - name: Start SurrealDB
         run: 
           surreal start -u surreal -p password&
-
-      # - name: Install surrealdb-migrations
-      #   run: 
-      #     cargo install surrealdb-migrations
-
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
       - name: Setup mold linker
@@ -96,7 +86,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+        run: cargo llvm-cov --ignore-filename-regex quick_test --all-features --workspace --lcov --output-path lcov.info
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:
