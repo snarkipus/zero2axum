@@ -1,3 +1,4 @@
+use secrecy::ExposeSecret;
 use std::net::TcpListener;
 use surrealdb::{engine::remote::ws::Ws, opt::auth::Root, Surreal};
 use tracing::{info, warn};
@@ -30,7 +31,7 @@ async fn main() -> color_eyre::Result<()> {
 
     db.signin(Root {
         username: &configuration.database.username,
-        password: &configuration.database.password,
+        password: configuration.database.password.expose_secret(),
     })
     .await
     .expect("Failed to signin.");

@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use rstest::*;
+use secrecy::ExposeSecret;
 use std::net::TcpListener;
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
@@ -52,7 +53,7 @@ async fn spawn_app() -> TestApp {
     db_configuration.ns = Some("default".to_string());
     db_configuration.db = Some(configuration.database.database_name.clone());
     db_configuration.username = Some(configuration.database.username.clone());
-    db_configuration.password = Some(configuration.database.password.clone());
+    db_configuration.password = Some(configuration.database.password.expose_secret().clone());
 
     let db = Surreal::new::<Ws>(connection_string)
         .await
@@ -60,7 +61,7 @@ async fn spawn_app() -> TestApp {
 
     db.signin(Root {
         username: &configuration.database.username,
-        password: &configuration.database.password,
+        password: configuration.database.password.expose_secret(),
     })
     .await
     .expect("Failed to signin.");
