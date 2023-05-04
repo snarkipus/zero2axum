@@ -1,5 +1,3 @@
-use std::net::TcpListener;
-
 use axum::{
     middleware,
     response::{IntoResponse, Response},
@@ -8,7 +6,9 @@ use axum::{
 };
 use hyper::{server::conn::AddrIncoming, Body, Method, Uri};
 use serde_json::json;
+use std::net::TcpListener;
 use surrealdb::{engine::remote::ws::Client, Surreal};
+use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
 
@@ -23,7 +23,19 @@ pub async fn run(
         .route("/health_check", get(routes::handler_health_check))
         .layer(middleware::map_response(main_response_mapper))
         .route("/subscribe", post(routes::handler_subscribe))
-        .with_state(db);
+        .with_state(db)
+        .layer(
+            TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
+                info!("->> {:<8} - main_trace_layer", "TRACE_LAYER");
+                let uuid = Uuid::new_v4();
+                tracing::info_span!(
+                    "request",
+                    uuid = %uuid,
+                    method = %request.method(),
+                    uri = %request.uri(),
+                )
+            }),
+        );
 
     let server = Server::from_tcp(listener)
         .unwrap_or_else(|e| {
@@ -39,7 +51,7 @@ async fn main_response_mapper(
     _req_method: Method,
     res: Response,
 ) -> Response {
-    info!("->> {:<12} - main_response_mapper", "RES_MAPPER");
+    info!("->> {:<8} - main_response_mapper", "RES_MAPPER");
     let uuid = Uuid::new_v4();
 
     // Get the response error

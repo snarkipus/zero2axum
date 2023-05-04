@@ -4,7 +4,7 @@ use axum::{
 };
 
 use ::serde::Serialize;
-use tracing::warn;
+use tracing::error;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
@@ -27,7 +27,7 @@ impl std::error::Error for Error {}
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        warn!("->> {:<12} - {self:?}", "INTO_RES");
+        error!("->> {:<8} - {self:?}", "INTO_RES");
 
         // Axum error response
         let mut response = StatusCode::INTERNAL_SERVER_ERROR.into_response();

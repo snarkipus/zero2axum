@@ -64,3 +64,8 @@ Frontend (Client):
   - httpc_test, rstest
 - Database:
   - SurrealDB, [surrealdb-migrations](https://github.com/Odonno/surrealdb-migrations)
+
+  ## Chapter 4
+  - Telemetry:
+    - Tracing, Tracing-Subscriber
+    - OpenTelemetry w/Honeycomb: [Honeycomb.io](https://ui.honeycomb.io)
