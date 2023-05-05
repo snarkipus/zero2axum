@@ -76,8 +76,17 @@ Frontend (Client):
   - No 'lazy' connection to SurrealDB (would require refactoring initialization code to endpoint handler - doable, but dumb)
 
 - ok, so I'm going to have to refactor this stupid thing - it totally breaks the flow of the book if I don't
-  - [ ] instead of connection pool, pass configurations
-  - [ ] initialize database connection (post init.sh migration) at the handler
-  - [ ] major refactor of the tests to create configs/migrations within the tests
+  - [x] instead of connection pool, pass configurations
+  - [x] initialize database connection (post init.sh migration) at the handler
+  - [x] major refactor of the tests to create configs/migrations within the tests
+
+### Deployment Configuration
+- zero2axum: Dockerfile deployment via `spec.yaml` to Digital Ocean Apps
+- SurrealDB: VPS w/Docker deployment to Digital Ocean Droplet
+  - [ ] SSL does horrible, terrible things and doesn't work [Bug 1929](https://github.com/surrealdb/surrealdb/issues/1929)
   
+#### 5.4.4 Connecting To Digital Ocean’s Postgres Instance
+Since I'm using SurrealDB and not a Postgres package, I need to revisit this section - not sure SSL is required for my most likely very-unsafe implementation.
+
+
     

@@ -1,5 +1,6 @@
-use secrecy::Secret;
+use secrecy::{ExposeSecret, Secret};
 use serde_aux::field_attributes::deserialize_number_from_string;
+use surrealdb_migrations::SurrealdbConfiguration;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Settings {
@@ -25,16 +26,27 @@ pub struct DatabaseSettings {
 }
 
 impl DatabaseSettings {
+    pub fn without_db(&self) -> SurrealdbConfiguration {
+        let mut db_configuration = SurrealdbConfiguration::default();
+        db_configuration.url = Some(format!("{}:{}", &self.host, &self.port));
+        db_configuration.ns = Some("default".to_string());
+        db_configuration.username = Some(self.username.clone());
+        db_configuration.password = Some(self.password.expose_secret().to_string());
+        db_configuration
+    }
+
+    pub fn with_db(&self) -> SurrealdbConfiguration {
+        let mut db_configuration = self.without_db();
+        db_configuration.db = Some(self.database_name.clone());
+        db_configuration
+    }
+
     pub fn connection_string(&self) -> Secret<String> {
-        Secret::new(format!(
-            "{}:{}", self.host, self.port
-        ))
+        Secret::new(format!("{}:{}", self.host, self.port))
     }
 
     pub fn connection_string_without_db(&self) -> Secret<String> {
-        Secret::new(format!(
-            "{}:{}", self.host, self.port
-        ))
+        Secret::new(format!("{}:{}", self.host, self.port))
     }
 }
 
