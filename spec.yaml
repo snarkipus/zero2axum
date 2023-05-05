@@ -15,3 +15,7 @@ services:
     instance_size_slug: basic-xxs
     routes:
       - path: /
+    envs:
+      - key: SENTRY_DSN
+        scope: RUN_TIME
+        value: "https://6082f6eb5db14b53b14807af2d7f248e@o4504823566761984.ingest.sentry.io/4505063967031296"

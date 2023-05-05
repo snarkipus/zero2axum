@@ -74,4 +74,10 @@ Frontend (Client):
 - A bit different w/SurrealDB
   - No offline compile-time verification
   - No 'lazy' connection to SurrealDB (would require refactoring initialization code to endpoint handler - doable, but dumb)
+
+- ok, so I'm going to have to refactor this stupid thing - it totally breaks the flow of the book if I don't
+  - [ ] instead of connection pool, pass configurations
+  - [ ] initialize database connection (post init.sh migration) at the handler
+  - [ ] major refactor of the tests to create configs/migrations within the tests
+  
     

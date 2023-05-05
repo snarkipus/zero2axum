@@ -7,23 +7,22 @@ use axum::{
 use hyper::{server::conn::AddrIncoming, Body, Method, Uri};
 use serde_json::json;
 use std::net::TcpListener;
-use surrealdb::{engine::remote::ws::Client, Surreal};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::{error, routes};
+use crate::{error, routes, configuration::Settings};
 
 pub async fn run(
     listener: TcpListener,
-    db: Surreal<Client>,
+    configuration: Settings,
 ) -> Result<Server<AddrIncoming, IntoMakeService<Router<(), Body>>>, std::io::Error> {
     let app = Router::new()
         .route("/", get(routes::handler_hello))
         .route("/health_check", get(routes::handler_health_check))
         .layer(middleware::map_response(main_response_mapper))
         .route("/subscribe", post(routes::handler_subscribe))
-        .with_state(db)
+        .with_state(configuration)
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
                 info!("->> {:<8} - main_trace_layer", "TRACE_LAYER");

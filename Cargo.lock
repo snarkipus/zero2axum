@@ -3169,6 +3169,61 @@ dependencies = [
 ]
 
 [[package]]
+name = "surrealdb"
+version = "1.0.0-beta.9+20230402"
+source = "git+https://github.com/surrealdb/surrealdb/?tag=v1.0.0-beta.9+20230402#5eafebd64b15879b126532e1823a3d36554ca49b"
+dependencies = [
+ "addr",
+ "any_ascii",
+ "argon2",
+ "async-channel",
+ "async-executor",
+ "async-recursion",
+ "bcrypt",
+ "bigdecimal",
+ "bung",
+ "chrono",
+ "dmp",
+ "flume",
+ "futures",
+ "futures-concurrency",
+ "fuzzy-matcher",
+ "geo",
+ "indexmap",
+ "lexicmp",
+ "log",
+ "md-5",
+ "nanoid",
+ "nom",
+ "once_cell",
+ "pbkdf2",
+ "pharos",
+ "rand",
+ "regex",
+ "reqwest",
+ "rustls",
+ "scrypt",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha-1",
+ "sha2",
+ "storekey",
+ "surrealdb-derive",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-tungstenite",
+ "tracing",
+ "trice",
+ "ulid",
+ "url",
+ "uuid",
+ "wasm-bindgen-futures",
+ "ws_stream_wasm",
+]
+
+[[package]]
 name = "surrealdb-derive"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3196,7 +3251,7 @@ dependencies = [
  "rust-ini",
  "serde",
  "serde_json",
- "surrealdb",
+ "surrealdb 1.0.0-beta.9+20230402 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio",
 ]
 
@@ -4226,7 +4281,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum_macros",
- "surrealdb",
+ "surrealdb 1.0.0-beta.9+20230402 (git+https://github.com/surrealdb/surrealdb/?tag=v1.0.0-beta.9+20230402)",
  "surrealdb-migrations",
  "tokio",
  "tower-http",

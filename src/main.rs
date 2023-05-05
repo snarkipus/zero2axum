@@ -1,6 +1,4 @@
-use secrecy::ExposeSecret;
 use std::net::TcpListener;
-use surrealdb::{engine::remote::ws::Ws, opt::auth::Root, Surreal};
 use tracing::{info, warn};
 
 use zero2axum::{
@@ -18,29 +16,7 @@ async fn main() -> color_eyre::Result<()> {
 
     init_honeycomb();
 
-    // region: -- SurrealDB: Initialize
     let configuration = get_configuration().expect("Failed to read configuration.");
-    let connection_string = format!(
-        "{}:{}",
-        configuration.database.host, configuration.database.port
-    );
-
-    let db = Surreal::new::<Ws>(connection_string)
-        .await
-        .expect("Failed to connect to SurrealDB.");
-
-    db.signin(Root {
-        username: &configuration.database.username,
-        password: configuration.database.password.expose_secret(),
-    })
-    .await
-    .expect("Failed to signin.");
-
-    db.use_ns("default")
-        .use_db("newsletter")
-        .await
-        .expect("Failed to use database.");
-    // endregion: --- SurrealDB: Initialize
 
     let address = format!("127.0.0.1:{}", configuration.application.port);
     let listener = TcpListener::bind(address).expect("Failed to bind to port");
@@ -51,7 +27,7 @@ async fn main() -> color_eyre::Result<()> {
         warn!("Received Ctrl-C, shutting down gracefully...");
     };
 
-    let s = run(listener, db).await.unwrap_or_else(|e| {
+    let s = run(listener, configuration).await.unwrap_or_else(|e| {
         panic!("Failed to start server: {}", e);
     });
     info!("Server listening on http://127.0.0.1:{port}");

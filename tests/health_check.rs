@@ -11,7 +11,7 @@ use surrealdb_migrations::{SurrealdbConfiguration, SurrealdbMigrations};
 use tracing::info;
 use uuid::Uuid;
 use zero2axum::{
-    configuration::get_configuration,
+    configuration::{get_configuration, Settings},
     routes::FormData,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -30,7 +30,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 
 pub struct TestApp {
     pub address: String,
-    pub db: Surreal<Client>,
+    pub configuration: Settings,
 }
 
 // region: -- spawn_app
@@ -38,68 +38,25 @@ pub struct TestApp {
 async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
-    // region: -- SurrealDB: Initialize
     let mut configuration = get_configuration().expect("Failed to read configuration.");
-
     configuration.database.database_name = Uuid::new_v4().to_string();
-
-    let connection_string = format!(
-        "{}:{}",
-        configuration.database.host, configuration.database.port
-    );
-
-    let mut db_configuration = SurrealdbConfiguration::default();
-    db_configuration.url = Some(connection_string.clone());
-    db_configuration.ns = Some("default".to_string());
-    db_configuration.db = Some(configuration.database.database_name.clone());
-    db_configuration.username = Some(configuration.database.username.clone());
-    db_configuration.password = Some(configuration.database.password.expose_secret().clone());
-
-    let db = Surreal::new::<Ws>(connection_string)
-        .await
-        .expect("Failed to connect to SurrealDB.");
-
-    db.signin(Root {
-        username: &configuration.database.username,
-        password: configuration.database.password.expose_secret(),
-    })
-    .await
-    .expect("Failed to signin.");
-
-    db.use_ns("default")
-        .use_db(configuration.database.database_name)
-        .await
-        .expect("Failed to use database.");
-
-    configure_database(db_configuration)
-        .await
-        .expect("Failed to configure database.");
-    // endregion: --- SurrealDB: Initialize
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
-    let s = zero2axum::startup::run(listener, db.clone())
+    let s = zero2axum::startup::run(listener, configuration.clone())
         .await
         .unwrap_or_else(|e| {
             panic!("Failed to start server: {}", e);
         });
     info!("Server listening on http://127.0.0.1:{port}");
     let _ = tokio::spawn(s);
-    TestApp { address, db }
+    TestApp {
+        address,
+        configuration,
+    }
 }
 // endregion: -- spawn_app
-
-// region: -- Migrations
-pub async fn configure_database(config: SurrealdbConfiguration) -> color_eyre::Result<()> {
-    SurrealdbMigrations::new(config)
-        .up()
-        .await
-        .expect("Failed to run migrations.");
-
-    Ok(())
-}
-// endregion: -- Migrations
 
 // region: -- GET: 200 OK
 #[tokio::test]
@@ -127,6 +84,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let app = spawn_app().await;
     let client = reqwest::Client::new();
+    let db = create_db(app.configuration.clone()).await;
 
     // Act
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -143,8 +101,7 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     let sql = "SELECT email, name FROM subscriptions";
 
-    let mut res = app
-        .db
+    let mut res = db
         .query(sql)
         .await
         .expect("Failed to fetch saved subscription.");
@@ -192,3 +149,43 @@ async fn subscribe_returns_a_422_when_data_is_missing(
     );
 }
 // endregion: -- POST Form: 422 Unprocessable Entity
+
+// region: -- SurrealDB: Initialize & Migration
+async fn create_db(configuration: Settings) -> Surreal<Client> {
+    let connection_string = format!(
+        "{}:{}",
+        configuration.database.host, configuration.database.port
+    );
+
+    let db = Surreal::new::<Ws>(connection_string.clone())
+        .await
+        .expect("Failed to connect to SurrealDB.");
+
+    db.signin(Root {
+        username: &configuration.database.username,
+        password: configuration.database.password.expose_secret(),
+    })
+    .await
+    .expect("Failed to signin.");
+
+    db.use_ns("default")
+        .use_db(&configuration.database.database_name)
+        .await
+        .expect("Failed to use database.");
+
+    let mut db_configuration = SurrealdbConfiguration::default();
+    db_configuration.url = Some(connection_string.clone());
+    db_configuration.ns = Some("default".to_string());
+    db_configuration.db = Some(configuration.database.database_name.clone());
+    db_configuration.username = Some(configuration.database.username.clone());
+    db_configuration.password = Some(configuration.database.password.expose_secret().clone());
+
+    SurrealdbMigrations::new(db_configuration)
+        .up()
+        .await
+        .expect("Failed to run migrations.");
+
+    db
+}
+// endregion: --- SurrealDB: Initialize & Migration
+
