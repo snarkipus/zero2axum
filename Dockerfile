@@ -44,6 +44,7 @@ RUN --mount=type=cache,target=/root/.rustup \
     set -eux; \
     cargo build --release; \
     objcopy --compress-debug-sections ./target/release/zero2axum ./zero2axum
+ENV APP_ENVIRONMENT production
 ###############################################################################
 
 FROM base AS app

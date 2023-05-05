@@ -188,4 +188,3 @@ async fn create_db(configuration: Settings) -> Surreal<Client> {
     db
 }
 // endregion: --- SurrealDB: Initialize & Migration
-

@@ -11,7 +11,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::{error, routes, configuration::Settings};
+use crate::{configuration::Settings, error, routes};
 
 pub async fn run(
     listener: TcpListener,
