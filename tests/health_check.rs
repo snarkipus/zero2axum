@@ -2,16 +2,12 @@ use once_cell::sync::Lazy;
 use rstest::*;
 use secrecy::ExposeSecret;
 use std::net::TcpListener;
-use surrealdb::{
-    engine::remote::ws::{Client, Ws},
-    opt::auth::Root,
-    Surreal,
-};
 use surrealdb_migrations::{SurrealdbConfiguration, SurrealdbMigrations};
 use tracing::info;
 use uuid::Uuid;
 use zero2axum::{
     configuration::{get_configuration, Settings},
+    db,
     routes::FormData,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -84,7 +80,8 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let app = spawn_app().await;
     let client = reqwest::Client::new();
-    let db = create_db(app.configuration.clone()).await;
+    let db = db::create_db(app.configuration.clone()).await;
+    let _ = migrate_db(app.configuration.clone()).await;
 
     // Act
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -151,40 +148,22 @@ async fn subscribe_returns_a_422_when_data_is_missing(
 // endregion: -- POST Form: 422 Unprocessable Entity
 
 // region: -- SurrealDB: Initialize & Migration
-async fn create_db(configuration: Settings) -> Surreal<Client> {
-    let connection_string = format!(
+async fn migrate_db(configuration: Settings) -> Result<(), surrealdb::Error> {
+    let mut db_configuration = SurrealdbConfiguration::default();
+    db_configuration.url = Some(format!(
         "{}:{}",
         configuration.database.host, configuration.database.port
-    );
-
-    let db = Surreal::new::<Ws>(connection_string.clone())
-        .await
-        .expect("Failed to connect to SurrealDB.");
-
-    db.signin(Root {
-        username: &configuration.database.username,
-        password: configuration.database.password.expose_secret(),
-    })
-    .await
-    .expect("Failed to signin.");
-
-    db.use_ns("default")
-        .use_db(&configuration.database.database_name)
-        .await
-        .expect("Failed to use database.");
-
-    let mut db_configuration = SurrealdbConfiguration::default();
-    db_configuration.url = Some(connection_string.clone());
+    ));
     db_configuration.ns = Some("default".to_string());
-    db_configuration.db = Some(configuration.database.database_name.clone());
-    db_configuration.username = Some(configuration.database.username.clone());
-    db_configuration.password = Some(configuration.database.password.expose_secret().clone());
+    db_configuration.db = Some(configuration.database.database_name);
+    db_configuration.username = Some(configuration.database.username);
+    db_configuration.password = Some(configuration.database.password.expose_secret().to_string());
 
     SurrealdbMigrations::new(db_configuration)
         .up()
         .await
         .expect("Failed to run migrations.");
 
-    db
+    Ok(())
 }
 // endregion: --- SurrealDB: Initialize & Migration

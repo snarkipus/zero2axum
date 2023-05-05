@@ -1,4 +1,5 @@
 use secrecy::Secret;
+use serde_aux::field_attributes::deserialize_number_from_string;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Settings {
@@ -9,6 +10,7 @@ pub struct Settings {
 #[derive(serde::Deserialize, Clone)]
 pub struct ApplicationSettings {
     pub host: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
 }
 
@@ -17,17 +19,22 @@ pub struct DatabaseSettings {
     pub username: String,
     pub password: Secret<String>,
     pub host: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub database_name: String,
 }
 
 impl DatabaseSettings {
-    pub fn connection_string(&self) -> String {
-        format!("http://{}:{}/", self.host, self.port)
+    pub fn connection_string(&self) -> Secret<String> {
+        Secret::new(format!(
+            "{}:{}", self.host, self.port
+        ))
     }
 
-    pub fn connection_string_without_db(&self) -> String {
-        format!("http://{}:{}/", self.host, self.port)
+    pub fn connection_string_without_db(&self) -> Secret<String> {
+        Secret::new(format!(
+            "{}:{}", self.host, self.port
+        ))
     }
 }
 
@@ -47,6 +54,11 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .add_source(config::File::from(
             configuration_directory.join(environment_filename),
         ))
+        .add_source(
+            config::Environment::with_prefix("APP")
+                .prefix_separator("_")
+                .separator("__"),
+        )
         .build()?;
 
     settings.try_deserialize::<Settings>()

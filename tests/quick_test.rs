@@ -7,7 +7,10 @@ use zero2axum::configuration::get_configuration;
 #[cfg_attr(not(feature = "ci"), ignore)]
 async fn quick_test() -> color_eyre::Result<()> {
     let configuration = get_configuration().expect("Failed to read configuration.");
-    let address = format!("http://127.0.0.1:{}", configuration.application.port);
+    let address = format!(
+        "http://{}:{}",
+        configuration.application.host, configuration.application.port
+    );
     let hc = httpc_test::new_client(&address)?;
 
     // hello handler tests
