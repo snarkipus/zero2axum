@@ -1,8 +1,7 @@
 use once_cell::sync::Lazy;
 use rstest::*;
-use secrecy::ExposeSecret;
 use std::net::TcpListener;
-use surrealdb_migrations::{SurrealdbConfiguration, SurrealdbMigrations};
+use surrealdb_migrations::SurrealdbMigrations;
 use tracing::info;
 use uuid::Uuid;
 use zero2axum::{
@@ -12,6 +11,7 @@ use zero2axum::{
     telemetry::{get_subscriber, init_subscriber},
 };
 
+// region: -- conditional tracing for tests
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
     let subscriber_name = "test".to_string();
@@ -23,9 +23,9 @@ static TRACING: Lazy<()> = Lazy::new(|| {
         init_subscriber(subscriber);
     }
 });
+// endregion: -- conditional tracing for tests
 
 pub struct TestApp {
-    pub address: String,
     pub configuration: Settings,
 }
 
@@ -38,19 +38,19 @@ async fn spawn_app() -> TestApp {
     configuration.database.database_name = Uuid::new_v4().to_string();
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
-    let port = listener.local_addr().unwrap().port();
-    let address = format!("http://127.0.0.1:{}", port);
+    configuration.application.port = listener.local_addr().unwrap().port();
+
     let s = zero2axum::startup::run(listener, configuration.clone())
         .await
         .unwrap_or_else(|e| {
             panic!("Failed to start server: {}", e);
         });
-    info!("Server listening on http://127.0.0.1:{port}");
+    info!(
+        "Server listening on http://{}:{}",
+        configuration.application.host, configuration.application.port
+    );
     let _ = tokio::spawn(s);
-    TestApp {
-        address,
-        configuration,
-    }
+    TestApp { configuration }
 }
 // endregion: -- spawn_app
 
@@ -63,7 +63,10 @@ async fn health_check_works() {
 
     // Act
     let response = client
-        .get(&format!("{}/health_check", &app.address))
+        .get(&format!(
+            "http://{}:{}/health_check",
+            &app.configuration.application.host, &app.configuration.application.port
+        ))
         .send()
         .await
         .expect("Failed to execute request.");
@@ -81,12 +84,17 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     let app = spawn_app().await;
     let client = reqwest::Client::new();
     let db = db::create_db(app.configuration.clone()).await;
-    let _ = migrate_db(app.configuration.clone()).await;
+    migrate_db(app.configuration.clone())
+        .await
+        .expect("Failed to migrate database.");
 
     // Act
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client
-        .post(&format!("{}/subscribe", &app.address))
+        .post(&format!(
+            "http://{}:{}/subscribe",
+            &app.configuration.application.host, &app.configuration.application.port
+        ))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -130,7 +138,10 @@ async fn subscribe_returns_a_422_when_data_is_missing(
 
     // Act
     let response = client
-        .post(&format!("{}/subscribe", &app.address))
+        .post(&format!(
+            "http://{}:{}/subscribe",
+            &app.configuration.application.host, &app.configuration.application.port
+        ))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(invalid_body.to_string())
         .send()
@@ -149,15 +160,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(
 
 // region: -- SurrealDB: Initialize & Migration
 async fn migrate_db(configuration: Settings) -> Result<(), surrealdb::Error> {
-    let mut db_configuration = SurrealdbConfiguration::default();
-    db_configuration.url = Some(format!(
-        "{}:{}",
-        configuration.database.host, configuration.database.port
-    ));
-    db_configuration.ns = Some("default".to_string());
-    db_configuration.db = Some(configuration.database.database_name);
-    db_configuration.username = Some(configuration.database.username);
-    db_configuration.password = Some(configuration.database.password.expose_secret().to_string());
+    let db_configuration = configuration.database.with_db();
 
     SurrealdbMigrations::new(db_configuration)
         .up()
