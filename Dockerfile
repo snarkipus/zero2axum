@@ -11,7 +11,6 @@ ENV TZ=US/Eastern \
 RUN set -eux; \
     apt update; \
     apt install -y --no-install-recommends \
-    # lld clang openssh-client git-core curl ca-certificates gcc libc6-dev libssl-dev pkg-config \
     lld clang curl ca-certificates \
     ;
 

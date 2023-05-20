@@ -82,9 +82,10 @@ Frontend (Client):
 
 ### Deployment Configuration
 - zero2axum: Dockerfile deployment via `spec.yaml` to Digital Ocean Apps
-- SurrealDB: VPS w/Docker deployment to Digital Ocean Droplet
-  - [ ] SSL does horrible, terrible things and doesn't work [Bug 1929](https://github.com/surrealdb/surrealdb/issues/1929)
-  
+- SurrealDB: ~~VPS w/Docker deployment to Digital Ocean Droplet~~ 
+  - [x] Host SurrealDB on personal VPS (in my case, k3s cluster running on Hetzner)
+  - [x] SSL does horrible, terrible things and doesn't work [Bug: 1929](https://github.com/surrealdb/surrealdb/issues/1929) ([Fix: PR#1960](https://github.com/surrealdb/surrealdb/pull/1960))
+  - [ ] Refactor 'production' environment to reflect `Wss` vs `Ws` connection and new database endpoint ... this will take some figuring out
 #### 5.4.4 Connecting To Digital Ocean’s Postgres Instance
 Since I'm using SurrealDB and not a Postgres package, I need to revisit this section - not sure SSL is required for my most likely very-unsafe implementation.
 

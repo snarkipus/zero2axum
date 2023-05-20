@@ -1,6 +1,6 @@
 use secrecy::ExposeSecret;
 use surrealdb::{
-    engine::remote::ws::{Client, Ws},
+    engine::remote::ws::{Client, Wss},
     opt::auth::Root,
     Surreal,
 };
@@ -21,7 +21,7 @@ pub async fn create_db(configuration: Settings) -> Surreal<Client> {
         configuration.database.host, configuration.database.port
     );
 
-    let db = Surreal::new::<Ws>(connection_string)
+    let db = Surreal::new::<Wss>(connection_string)
         .await
         .expect("Failed to connect to SurrealDB.");
 
