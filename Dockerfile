@@ -39,6 +39,7 @@ COPY Cargo.toml Cargo.lock ./
 
 RUN if [ -z "$GIT_CRYPT_KEY" ]; then \
         echo "$GIT_CRYPT_KEY" | base64 --decode > git_crypt_key; \
+        git stash; \
         git-crypt unlock git_crypt_key; \
         rm git_crypt_key; \
     fi
@@ -74,6 +75,7 @@ COPY configuration configuration
 
 RUN if [ -z "$GIT_CRYPT_KEY" ]; then \
         echo "$GIT_CRYPT_KEY" | base64 --decode > git_crypt_key; \
+        git stash; \
         git-crypt unlock git_crypt_key; \
         rm git_crypt_key; \
     fi
