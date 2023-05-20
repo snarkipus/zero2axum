@@ -10,22 +10,40 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
+      - name: Install git-crypt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-crypt
+
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Decrypt Files
+        run: |
+          echo "${{ secrets.GIT_CRYPT_KEY }}" | base64 --decode > git_crypt_key
+          git-crypt unlock git_crypt_key
+          rm git_crypt_key
+
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
+
       - name: Download SurrealDB
         run: 
           curl -sSf https://install.surrealdb.com | sh
+
       - name: Start SurrealDB
         run: 
           surreal start -u surreal -p password&
+
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
+
       - name: Setup mold linker
         uses: rui314/setup-mold@v1
+        
       - name: Run tests
         run: cargo test
 
@@ -33,16 +51,31 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
+      - name: Install git-crypt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-crypt
+
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Decrypt Files
+        run: |
+          echo "${{ secrets.GIT_CRYPT_KEY }}" | base64 --decode > git_crypt_key
+          git-crypt unlock git_crypt_key
+          rm git_crypt_key
+
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
+
       - name: Setup mold linker
         uses: rui314/setup-mold@v1
+
       - name: Enforce formatting
         run: cargo fmt --check
 
@@ -50,16 +83,31 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
+      - name: Install git-crypt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-crypt
+
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Decrypt Files
+        run: |
+          echo "${{ secrets.GIT_CRYPT_KEY }}" | base64 --decode > git_crypt_key
+          git-crypt unlock git_crypt_key
+          rm git_crypt_key
+
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
+
       - name: Setup mold linker
         uses: rui314/setup-mold@v1
+
       - name: Linting
         run: cargo clippy -- -D warnings
 
@@ -67,26 +115,45 @@ jobs:
     name: Code coverage
     runs-on: ubuntu-latest
     steps:
+      - name: Install git-crypt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-crypt
+
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Decrypt Files
+        run: |
+          echo "${{ secrets.GIT_CRYPT_KEY }}" | base64 --decode > git_crypt_key
+          git-crypt unlock git_crypt_key
+          rm git_crypt_key
+
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
+
       - name: Download SurrealDB
         run: 
           curl -sSf https://install.surrealdb.com | sh
       - name: Start SurrealDB
         run: 
           surreal start -u surreal -p password&
+
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
+
       - name: Setup mold linker
         uses: rui314/setup-mold@v1
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:
