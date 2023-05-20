@@ -22,8 +22,6 @@ async fn quick_test() -> color_eyre::Result<()> {
 
     // subscribe handler tests -- application/x-www-form-urlencoded
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-    // let body = "";
-    // let body = "name=le%20guin";
     let client = reqwest::Client::new();
     let response = client
         .post(&format!("{}/subscribe", &address))
