@@ -4321,7 +4321,7 @@ dependencies = [
 
 [[package]]
 name = "zero2axum"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "axum",
  "chrono",

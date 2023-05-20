@@ -92,7 +92,7 @@ Frontend (Client):
   - this got needlessly complicated and non-automated (domain names, etc.) - might as well just host my own
   - [x] Host SurrealDB on personal VPS (in my case, k3s cluster running on Hetzner)
   - [x] SSL does horrible, terrible things and doesn't work [Bug: 1929](https://github.com/surrealdb/surrealdb/issues/1929) ([Fix: PR#1960](https://github.com/surrealdb/surrealdb/pull/1960))
-  - [ ] Refactor 'production' environment to reflect `Wss` vs `Ws` connection and new database endpoint ... this will take some figuring out
+  - [x] Refactor 'production' environment to reflect `Wss` vs `Ws` connection and new database endpoint
 
 
 
