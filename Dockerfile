@@ -37,11 +37,12 @@ COPY . .
 # COPY .cargo .cargo
 COPY Cargo.toml Cargo.lock ./
 
-RUN if [ -z "$GIT_CRYPT_KEY" ]; then \
-        set -eux; \
-        echo "$GIT_CRYPT_KEY" | base64 --decode > git_crypt_key; \
-        git-crypt unlock git_crypt_key; \
-        rm git_crypt_key; \
+RUN if [ -z "${GIT_CRYPT_KEY}" ]; then \
+        echo "${GIT_CRYPT_KEY}"; \
+        #set -eux; \
+        #echo "$GIT_CRYPT_KEY" | base64 --decode > git_crypt_key; \
+        #git-crypt unlock git_crypt_key; \
+        #rm git_crypt_key; \
     fi
 
 RUN --mount=type=cache,target=/root/.rustup \
@@ -73,12 +74,12 @@ WORKDIR /app
 COPY --from=builder /app/zero2axum .
 COPY configuration configuration
 
-RUN if [ -z "$GIT_CRYPT_KEY" ]; then \
-        set -eux; \
-        echo "$GIT_CRYPT_KEY" | base64 --decode > git_crypt_key; \
-        git-crypt unlock git_crypt_key; \
-        rm git_crypt_key; \
-    fi
+# RUN if [ -z "$GIT_CRYPT_KEY" ]; then \
+#         set -eux; \
+#         echo "$GIT_CRYPT_KEY" | base64 --decode > git_crypt_key; \
+#         git-crypt unlock git_crypt_key; \
+#         rm git_crypt_key; \
+#     fi
 
 ENV APP_ENVIRONMENT production
 ENTRYPOINT ["./zero2axum"]
