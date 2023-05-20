@@ -81,7 +81,12 @@ Frontend (Client):
   - [x] major refactor of the tests to create configs/migrations within the tests
 
 ### Deployment Configuration
-- zero2axum: Dockerfile deployment via `spec.yaml` to Digital Ocean Apps
+- zero2axum:
+  - ~~Dockerfile deployment via `spec.yaml` to Digital Ocean Apps~~
+    - turns out that managing `git-crypt` secrets with Dockerfile deployment and DO Apps Framework sucks (or at least I couldn't figure it out)
+  - switched to Fly.io:
+    - [x] Local deployment via `flyctl deploy` after using `fly launch` to generate the `fly.toml` config file worked painslessly (and without wrestling with git-crypt)
+    - [ ] [Fly.io CD Setup](https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/)
 - SurrealDB: ~~VPS w/Docker deployment to Digital Ocean Droplet~~ 
   - [x] Host SurrealDB on personal VPS (in my case, k3s cluster running on Hetzner)
   - [x] SSL does horrible, terrible things and doesn't work [Bug: 1929](https://github.com/surrealdb/surrealdb/issues/1929) ([Fix: PR#1960](https://github.com/surrealdb/surrealdb/pull/1960))

@@ -13,7 +13,7 @@ ENV TZ=US/Eastern \
 RUN set -eux; \
     apt update; \
     apt install -y --no-install-recommends \
-    lld clang curl ca-certificates git-crypt \
+    lld clang curl ca-certificates \
     ;
 
 # Install rustup
@@ -39,14 +39,6 @@ COPY . .
 # COPY .cargo .cargo
 COPY Cargo.toml Cargo.lock ./
 
-RUN if [ -z "${GIT_CRYPT_KEY}" ]; then \
-        echo "${GIT_CRYPT_KEY}"; \
-        #set -eux; \
-        #echo "$GIT_CRYPT_KEY" | base64 --decode > git_crypt_key; \
-        #git-crypt unlock git_crypt_key; \
-        #rm git_crypt_key; \
-    fi
-
 RUN --mount=type=cache,target=/root/.rustup \
     --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/root/.cargo/git \
@@ -65,7 +57,7 @@ SHELL ["/bin/bash", "-c"]
 RUN set -eux; \
     apt update; \
     apt install -y --no-install-recommends \
-      ca-certificates git-crypt \
+      ca-certificates \
       ; \
     apt clean autoclean; \
     apt autoremove --yes; \
@@ -75,13 +67,5 @@ RUN set -eux; \
 WORKDIR /app
 COPY --from=builder /app/zero2axum .
 COPY configuration configuration
-
-# RUN if [ -z "$GIT_CRYPT_KEY" ]; then \
-#         set -eux; \
-#         echo "$GIT_CRYPT_KEY" | base64 --decode > git_crypt_key; \
-#         git-crypt unlock git_crypt_key; \
-#         rm git_crypt_key; \
-#     fi
-
 ENV APP_ENVIRONMENT production
 ENTRYPOINT ["./zero2axum"]
