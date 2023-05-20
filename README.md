@@ -86,13 +86,14 @@ Frontend (Client):
     - turns out that managing `git-crypt` secrets with Dockerfile deployment and DO Apps Framework sucks (or at least I couldn't figure it out)
   - switched to Fly.io:
     - [x] Local deployment via `flyctl deploy` after using `fly launch` to generate the `fly.toml` config file worked painslessly (and without wrestling with git-crypt)
-    - [ ] [Fly.io CD Setup](https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/)
-- SurrealDB: ~~VPS w/Docker deployment to Digital Ocean Droplet~~ 
+    - [x] [Fly.io CD Setup](https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/)
+- SurrealDB (5.4.4 Connecting To Digital Ocean’s Postgres Instance): 
+  - [x] ~~VPS w/Docker deployment to Digital Ocean Droplet~~
+  - this got needlessly complicated and non-automated (domain names, etc.) - might as well just host my own
   - [x] Host SurrealDB on personal VPS (in my case, k3s cluster running on Hetzner)
   - [x] SSL does horrible, terrible things and doesn't work [Bug: 1929](https://github.com/surrealdb/surrealdb/issues/1929) ([Fix: PR#1960](https://github.com/surrealdb/surrealdb/pull/1960))
   - [ ] Refactor 'production' environment to reflect `Wss` vs `Ws` connection and new database endpoint ... this will take some figuring out
-#### 5.4.4 Connecting To Digital Ocean’s Postgres Instance
-Since I'm using SurrealDB and not a Postgres package, I need to revisit this section - not sure SSL is required for my most likely very-unsafe implementation.
+
 
 
     

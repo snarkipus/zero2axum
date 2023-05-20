@@ -1,6 +1,6 @@
 use secrecy::ExposeSecret;
 use surrealdb::{
-    engine::remote::ws::{Client, Wss},
+    engine::remote::ws::{Client, Ws, Wss},
     opt::auth::Root,
     Surreal,
 };
@@ -21,9 +21,10 @@ pub async fn create_db(configuration: Settings) -> Surreal<Client> {
         configuration.database.host, configuration.database.port
     );
 
-    let db = Surreal::new::<Wss>(connection_string)
-        .await
-        .expect("Failed to connect to SurrealDB.");
+    let db = match std::env::var("APP_ENVIRONMENT") {
+        Ok(_) => Surreal::new::<Wss>(connection_string).await.unwrap(),
+        Err(_) => Surreal::new::<Ws>(connection_string).await.unwrap(),
+    };
 
     db.signin(Root {
         username: &configuration.database.username,
