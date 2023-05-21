@@ -97,4 +97,5 @@ Frontend (Client):
 ## Chapter 6
 - Type Safety: just a note, lack of `sqlx` kinda sucks ... 6.5 clearly shows the issue where a query is binding a field to a struct (instead of &str), and I know that will explode ... but it's silent without anything that guarantees type-safe queries.
 
+- pretty straight forward - only some minor errata around the `fake` crate and using `Arbitrary` ... no longer using rng as a trait, now it uses a struct - there's a link to the issue in the source
     
