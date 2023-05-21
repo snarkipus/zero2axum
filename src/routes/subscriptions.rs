@@ -54,7 +54,10 @@ pub async fn handler_subscribe(
         Err(_) => return Ok(StatusCode::BAD_REQUEST),
     };
 
-    let db = db::create_db(configuration).await;
+    let db = match db::create_db(configuration).await {
+        Ok(db) => db,
+        Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
+    };
     let results = insert_subscriber(&db, new_subscriber).await;
 
     match results.unwrap().check() {

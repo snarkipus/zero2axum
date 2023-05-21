@@ -83,7 +83,10 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let app = spawn_app().await;
     let client = reqwest::Client::new();
-    let db = db::create_db(app.configuration.clone()).await;
+    let db = match db::create_db(app.configuration.clone()).await {
+        Ok(db) => db,
+        Err(e) => panic!("Failed to create database: {}", e),
+    };
     migrate_db(app.configuration.clone())
         .await
         .expect("Failed to migrate database.");
@@ -192,6 +195,7 @@ async fn subscribe_returns_a_200_when_fields_are_present_but_empty(
         error_message
     );
 }
+// endregion: -- POST Form: 200 w/fields present but empty
 
 // region: -- SurrealDB: Initialize & Migration
 async fn migrate_db(configuration: Settings) -> Result<(), surrealdb::Error> {

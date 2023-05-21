@@ -1,4 +1,10 @@
 # Build Log & Changes
+<style>
+  code {
+    white-space: pre-wrap !important;
+    word-break: break-word;
+  }
+</style>
 
 ## Rust Resources
 - [Zero To Production In Rust](https://www.zero2prod.com/)
@@ -16,6 +22,38 @@
 ### DB Utilities
 - [surrealdb-migrations](https://github.com/Odonno/surrealdb-migrations/)
 - [Surrealist DB Explorer](https://github.com/StarlaneStudios/Surrealist)
+
+### DB CLI / SurrealQL
+
+<details>
+
+<summary>Example SurrealQL Terminal Session</summary>
+
+```
+❯ target/release/surreal sql --conn ws://localhost:8000 --user surreal --pass password
+> INFO FOR KV;
+[{ ns: { default: 'DEFINE NAMESPACE default' } }]
+
+> USE NS default;
+[]
+
+default> INFO FOR NS;
+[{ db: { "`03358854-c64b-4218-ac5e-0a9f0ef6d9e0`": 'DEFINE DATABASE `03358854-c64b-4218-ac5e-0a9f0ef6d9e0`', "`0db7dbcd-36ab-44ab-bd4e-7e0a671fc257`": 'DEFINE DATABASE `0db7dbcd-36ab-44ab-bd4e-7e0a671fc257`', "`1d5d717c-e548-45a5-bca9-1f9d555df047`": 'DEFINE DATABASE `1d5d717c-e548-45a5-bca9-1f9d555df047`', "`1e88b4cd-7a1b-4dc9-a7a6-4b9113a0104b`": 'DEFINE DATABASE `1e88b4cd-7a1b-4dc9-a7a6-4b9113a0104b`', "`2ea5190c-bd20-43b6-b9f1-a72d61f08eb8`": 'DEFINE DATABASE `2ea5190c-bd20-43b6-b9f1-a72d61f08eb8`', "`30332091-8f2f-4276-a479-56be361c60a5`": 'DEFINE DATABASE `30332091-8f2f-4276-a479-56be361c60a5`', "`3226719f-41f7-4b0c-9b0b-44f81318838b`": 'DEFINE DATABASE `3226719f-41f7-4b0c-9b0b-44f81318838b`', "`32e61988-1490-4940-8da7-b24dc41f6125`": 'DEFINE DATABASE `32e61988-1490-4940-8da7-b24dc41f6125`', "`419938a5-f9e1-41ac-943d-3289dc1b98ad`": 'DEFINE DATABASE `419938a5-f9e1-41ac-943d-3289dc1b98ad`', "`53a87388-8163-447f-b512-914b153045fc`": 'DEFINE DATABASE `53a87388-8163-447f-b512-914b153045fc`', "`556f7657-2d7d-4dea-8f53-2b2337c62276`": 'DEFINE DATABASE `556f7657-2d7d-4dea-8f53-2b2337c62276`', "`5e8c1b46-ddd2-40f9-8cdf-3603665fb432`": 'DEFINE DATABASE `5e8c1b46-ddd2-40f9-8cdf-3603665fb432`', "`5ed41f41-8538-435a-9e73-1e3c455a2252`": 'DEFINE DATABASE `5ed41f41-8538-435a-9e73-1e3c455a2252`', "`6416fdf9-a335-4ee2-9c5e-1b7048c14ce2`": 'DEFINE DATABASE `6416fdf9-a335-4ee2-9c5e-1b7048c14ce2`', "`736d865f-0fcf-4834-a506-a117a84384f3`": 'DEFINE DATABASE `736d865f-0fcf-4834-a506-a117a84384f3`', "`7b5c1533-165f-499d-a126-2596fe2ff5fd`": 'DEFINE DATABASE `7b5c1533-165f-499d-a126-2596fe2ff5fd`', "`8513744a-4148-422d-8029-a83555cdce30`": 'DEFINE DATABASE `8513744a-4148-422d-8029-a83555cdce30`', "`9744022e-ef87-41c1-9bf2-7c01b6ec01ab`": 'DEFINE DATABASE `9744022e-ef87-41c1-9bf2-7c01b6ec01ab`', "`a2bb8f4e-1b60-4aab-958d-3cadfcd4f682`": 'DEFINE DATABASE `a2bb8f4e-1b60-4aab-958d-3cadfcd4f682`', "`a4dbdf37-008e-4052-813c-db7df07f9f79`": 'DEFINE DATABASE `a4dbdf37-008e-4052-813c-db7df07f9f79`', "`b9182537-ab0f-4d78-b821-1d7338ecfa71`": 'DEFINE DATABASE `b9182537-ab0f-4d78-b821-1d7338ecfa71`', "`c51c93e5-118c-4111-901c-4be338729174`": 'DEFINE DATABASE `c51c93e5-118c-4111-901c-4be338729174`', "`d231d5f7-55b8-4d45-9789-8043624390fd`": 'DEFINE DATABASE `d231d5f7-55b8-4d45-9789-8043624390fd`', "`df0ced2c-945d-4e73-83cc-bde46385077f`": 'DEFINE DATABASE `df0ced2c-945d-4e73-83cc-bde46385077f`', "`e097fb8e-c07e-4676-b7f9-99073fac7398`": 'DEFINE DATABASE `e097fb8e-c07e-4676-b7f9-99073fac7398`', "`e485535d-a90f-4d74-a163-82b4890bf8a8`": 'DEFINE DATABASE `e485535d-a90f-4d74-a163-82b4890bf8a8`', "`f2d0c249-a5ed-42a8-9d01-536bb6c69ef3`": 'DEFINE DATABASE `f2d0c249-a5ed-42a8-9d01-536bb6c69ef3`', "`f7deb705-6e6c-4b61-be16-54e2e6ce2a4f`": 'DEFINE DATABASE `f7deb705-6e6c-4b61-be16-54e2e6ce2a4f`', "`fa49ab02-c35a-4d93-b210-f0756031a008`": 'DEFINE DATABASE `fa49ab02-c35a-4d93-b210-f0756031a008`', "`fe8abdf9-00c7-48c6-862e-101a9c5cceec`": 'DEFINE DATABASE `fe8abdf9-00c7-48c6-862e-101a9c5cceec`', newsletter: 'DEFINE DATABASE newsletter' }, nl: {  }, nt: {  } }]
+
+default> USE DB `03358854-c64b-4218-ac5e-0a9f0ef6d9e0`;
+There was a problem with the database: There was a problem with the database: Parse error on line 1 at character 15 when parsing '-c64b-4218-ac5e-0a9f0ef6d9e0;'
+
+default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> INFO FOR DB;
+[{ dl: {  }, dt: {  }, fc: {  }, pa: {  }, sc: {  }, tb: { subscriptions: 'DEFINE TABLE subscriptions SCHEMAFULL' } }]
+
+default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> INFO FOR TABLE subscriptions;
+[{ ev: {  }, fd: { email: 'DEFINE FIELD email ON subscriptions TYPE string ASSERT $value != NONE AND is::email($value)', id: 'DEFINE FIELD id ON subscriptions TYPE string ASSERT $value != NONE', name: 'DEFINE FIELD name ON subscriptions TYPE string ASSERT $value != NONE', subscribed_at: 'DEFINE FIELD subscribed_at ON subscriptions TYPE datetime ASSERT $value != NONE' }, ft: {  }, ix: { email: 'DEFINE INDEX email ON subscriptions FIELDS email UNIQUE', idIndex: 'DEFINE INDEX idIndex ON subscriptions FIELDS id' } }]
+
+default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> SELECT * FROM subscriptions;
+[{ email: 'ursula_le_guin@gmail.com', id: subscriptions:xf8xb288jdyx8ay12r1k, name: 'le guin', subscribed_at: '2023-05-21T03:24:38.086917396Z' }]
+```
+
+</details>
 
 ## Solutions
 - [Zero To Production (with axum)](https://github.com/mattiapenati/zero2prod)
@@ -92,7 +130,10 @@ Frontend (Client):
   - this got needlessly complicated and non-automated (domain names, etc.) - might as well just host my own
   - [x] Host SurrealDB on personal VPS (in my case, k3s cluster running on Hetzner)
   - [x] SSL does horrible, terrible things and doesn't work [Bug: 1929](https://github.com/surrealdb/surrealdb/issues/1929) ([Fix: PR#1960](https://github.com/surrealdb/surrealdb/pull/1960))
-  - [x] Refactor 'production' environment to reflect `Wss` vs `Ws` connection and new database endpoint
+  - [x] Refactor 'production' environment to reflect `Wss` vs. `Ws` connection and new database endpoint
+  - [ ] noticed that the initial schemaful migration run in the init script for local dev isn't being run for prod, so there are no unique constraints ... this would have broken with Postgres ... need to figure this out
+  - for now, just doing a manual migration using the surreal cli via:
+    `surreal import --conn https://my.db.here -u surreal -p password --ns default --db newsletter schemas/script_migration.surql` (also requires nightly, source built surreal since ssl is broken in beta-9)
 
 ## Chapter 6
 - Type Safety: just a note, lack of `sqlx` kinda sucks ... 6.5 clearly shows the issue where a query is binding a field to a struct (instead of &str), and I know that will explode ... but it's silent without anything that guarantees type-safe queries.
