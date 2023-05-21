@@ -94,6 +94,7 @@ Frontend (Client):
   - [x] SSL does horrible, terrible things and doesn't work [Bug: 1929](https://github.com/surrealdb/surrealdb/issues/1929) ([Fix: PR#1960](https://github.com/surrealdb/surrealdb/pull/1960))
   - [x] Refactor 'production' environment to reflect `Wss` vs `Ws` connection and new database endpoint
 
-
+## Chapter 6
+- Type Safety: just a note, lack of `sqlx` kinda sucks ... 6.5 clearly shows the issue where a query is binding a field to a struct (instead of &str), and I know that will explode ... but it's silent without anything that guarantees type-safe queries.
 
     

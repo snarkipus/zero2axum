@@ -1,3 +1,4 @@
+use crate::domain::{NewSubscriber, SubscriberName};
 use crate::{
     configuration::Settings,
     db,
@@ -36,8 +37,13 @@ pub async fn handler_subscribe(
     State(configuration): State<Settings>,
     Form(data): Form<FormData>,
 ) -> Result<impl IntoResponse> {
+    let new_subscriber = NewSubscriber {
+        email: data.email,
+        name: SubscriberName::parse(data.name).expect("Name validation failed."),
+    };
+
     let db = db::create_db(configuration).await;
-    let results = insert_subscriber(&db, data).await;
+    let results = insert_subscriber(&db, new_subscriber).await;
 
     match results.unwrap().check() {
         Ok(_) => Ok(StatusCode::OK),
@@ -50,16 +56,19 @@ pub async fn handler_subscribe(
 // endregion: -- Subscribe Handler
 
 // region: -- SurrealDB Store
-#[tracing::instrument(name = "Saving new subscriber details to SurrealDB", skip(data, db))]
+#[tracing::instrument(
+    name = "Saving new subscriber details to SurrealDB",
+    skip(new_subscriber, db)
+)]
 pub async fn insert_subscriber(
     db: &Surreal<Client>,
-    data: FormData,
+    new_subscriber: NewSubscriber,
 ) -> std::result::Result<surrealdb::Response, surrealdb::Error> {
     let sql = "INSERT INTO subscriptions (email, name, subscribed_at) VALUES ($email, $name, $subscribed_at)";
 
     db.query(sql)
-        .bind(("email", data.email))
-        .bind(("name", data.name))
+        .bind(("email", new_subscriber.email))
+        .bind(("name", new_subscriber.name.as_ref()))
         .bind(("subscribed_at", chrono::Utc::now().to_rfc3339()))
         .await
 }

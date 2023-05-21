@@ -158,6 +158,40 @@ async fn subscribe_returns_a_422_when_data_is_missing(
 }
 // endregion: -- POST Form: 422 Unprocessable Entity
 
+// region: -- POST Form: 200 w/fields present but empty
+#[rstest]
+#[case("name=&email=ursula_le_guin%40gmail.com", "empty name")]
+#[case("name=Ursula&email=", "empty email")]
+#[case("name=Ursula&email=definitely-not-an-email", "invalid email")]
+#[tokio::test]
+async fn subscribe_returns_a_200_when_fields_are_present_but_empty(
+    #[case] invalid_body: &str,
+    #[case] error_message: &str,
+) {
+    // Arrange
+    let app = spawn_app().await;
+    let client = reqwest::Client::new();
+
+    // Act
+    let response = client
+        .post(&format!(
+            "http://{}:{}/subscribe",
+            &app.configuration.application.host, &app.configuration.application.port
+        ))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(invalid_body.to_string())
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    // Assert
+    assert_eq!(
+        400,
+        response.status().as_u16(),
+        "The API did not return a 400 Bad Request when the payload was {}.",
+        error_message
+    );
+}
 // region: -- SurrealDB: Initialize & Migration
 async fn migrate_db(configuration: Settings) -> Result<(), surrealdb::Error> {
     let db_configuration = configuration.database.with_db();
