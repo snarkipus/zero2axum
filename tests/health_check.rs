@@ -192,6 +192,7 @@ async fn subscribe_returns_a_200_when_fields_are_present_but_empty(
         error_message
     );
 }
+
 // region: -- SurrealDB: Initialize & Migration
 async fn migrate_db(configuration: Settings) -> Result<(), surrealdb::Error> {
     let db_configuration = configuration.database.with_db();
