@@ -15,7 +15,9 @@ use crate::configuration::Settings;
       db = %configuration.database.database_name
   )
 )]
-pub async fn create_db(configuration: Settings) -> std::result::Result<Surreal<Client>, surrealdb::Error> {
+pub async fn create_db(
+    configuration: Settings,
+) -> std::result::Result<Surreal<Client>, surrealdb::Error> {
     let connection_string = format!(
         "{}:{}",
         configuration.database.host, configuration.database.port

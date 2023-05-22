@@ -57,7 +57,7 @@ default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> SELECT * FROM subscriptions;
 
 ## Solutions
 - [Zero To Production (with axum)](https://github.com/mattiapenati/zero2prod)
-- [An implementation of Zero To Production In Rust using Axum instead of Actix](https://github.com/SaadiSave/zero2prod)
+- [An implementation of Zero To Production In Rust using Axum instead of Actix (partial)](https://github.com/SaadiSave/zero2prod)
 
 
 ## Docs
@@ -140,3 +140,36 @@ Frontend (Client):
 
 - pretty straight forward - only some minor errata around the `fake` crate and using `Arbitrary` ... no longer using rng as a trait, now it uses a struct - there's a link to the issue in the source
     
+## Chapter 7
+### 7.2.2.2 Connection Pooling
+> ... most HTTP clients offer connection pooling: after the first request to a remote server
+has been completed, they will keep the connection open (for a certain amount of time) and re-use it if we
+need to fire off another request to the same server, therefore avoiding the need to re-establish a connection
+from scratch.
+
+>`reqwest` is no different - every time a Client instance is created reqwest initialises a connection pool under
+the hood.
+
+>To leverage this connection pool we need to reuse the same Client across multiple requests.
+It is also worth pointing out that Client::clone does not create a new connection pool - we just clone a
+pointer to the underlying pool.
+
+### 7.2.2.3 How to Reuse the same `reqwest::Client` in ~~`actix-web`~~ `Axum`
+> To re-use the same HTTP client across multiple requests in actix-web we need to store a copy of it in the
+application context - we will then be able to retrieve a reference to Client in our request handlers using an
+extractor (e.g. actix_web::web::Data).
+
+How do?
+
+#### Option 1:
+> Derive the Clone trait for EmailClient, build an instance of it once and then pass a clone to app_data
+every time we need to build an App
+
+#### Option 2:
+> Wrap EmailClient in actix_web::web::Data (an Arc pointer) and pass a pointer to app_data every
+time we need to build an App - like we are doing with PgPool:
+
+Which one?
+
+> If EmailClient were just a wrapper around a Client instance, the first option would be preferable - we avoid
+wrapping the connection pool twice with Arc. This is not the case though: EmailClient has two data fields attached (base_url and sender). The first implementation allocates new memory to hold a copy of that data every time an App instance is created, while the second shares it among all App instances. That’s why we will be using the second strategy.

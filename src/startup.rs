@@ -1,9 +1,11 @@
 use axum::{
+    extract::Extension,
     middleware,
     response::{IntoResponse, Response},
     routing::{get, post, IntoMakeService},
     Json, Router, Server,
 };
+
 use hyper::{server::conn::AddrIncoming, Body, Method, Uri};
 use serde_json::json;
 use std::net::TcpListener;
@@ -11,18 +13,30 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::{configuration::Settings, error, routes};
+use std::sync::Arc;
+
+use crate::{configuration::Settings, email_client::EmailClient, error, routes};
+
+pub struct AppState {
+    pub configuration: Settings,
+    pub email_client: EmailClient,
+}
 
 pub async fn run(
     listener: TcpListener,
     configuration: Settings,
+    email_client: EmailClient,
 ) -> Result<Server<AddrIncoming, IntoMakeService<Router<(), Body>>>, std::io::Error> {
+    let state = Arc::new(AppState {
+        configuration,
+        email_client,
+    });
+
     let app = Router::new()
         .route("/", get(routes::handler_hello))
         .route("/health_check", get(routes::handler_health_check))
-        .layer(middleware::map_response(main_response_mapper))
         .route("/subscribe", post(routes::handler_subscribe))
-        .with_state(configuration)
+        .layer(middleware::map_response(main_response_mapper))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
                 info!("->> {:<8} - main_trace_layer", "TRACE_LAYER");
@@ -34,7 +48,8 @@ pub async fn run(
                     uri = %request.uri(),
                 )
             }),
-        );
+        )
+        .layer(Extension(state));
 
     let server = Server::from_tcp(listener)
         .unwrap_or_else(|e| {

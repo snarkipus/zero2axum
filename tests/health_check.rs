@@ -7,6 +7,7 @@ use uuid::Uuid;
 use zero2axum::{
     configuration::{get_configuration, Settings},
     db,
+    email_client::EmailClient,
     routes::FormData,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -37,10 +38,17 @@ async fn spawn_app() -> TestApp {
     let mut configuration = get_configuration().expect("Failed to read configuration.");
     configuration.database.database_name = Uuid::new_v4().to_string();
 
+    let sender_email = configuration
+        .email_client
+        .sender()
+        .expect("Invalid sender email address.");
+
+    let email_client = EmailClient::new(configuration.email_client.base_url.clone(), sender_email);
+
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     configuration.application.port = listener.local_addr().unwrap().port();
 
-    let s = zero2axum::startup::run(listener, configuration.clone())
+    let s = zero2axum::startup::run(listener, configuration.clone(), email_client)
         .await
         .unwrap_or_else(|e| {
             panic!("Failed to start server: {}", e);

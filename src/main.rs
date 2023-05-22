@@ -3,6 +3,7 @@ use tracing::{info, warn};
 
 use zero2axum::{
     configuration::get_configuration,
+    email_client::EmailClient,
     startup::run,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -18,6 +19,13 @@ async fn main() -> color_eyre::Result<()> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
+    let sender_email = configuration
+        .email_client
+        .sender()
+        .expect("Invalid sender email address.");
+
+    let email_client = EmailClient::new(configuration.email_client.base_url.clone(), sender_email);
+
     let address = format!(
         "{}:{}",
         configuration.application.host, configuration.application.port
@@ -29,9 +37,11 @@ async fn main() -> color_eyre::Result<()> {
         warn!("Received Ctrl-C, shutting down gracefully...");
     };
 
-    let s = run(listener, configuration).await.unwrap_or_else(|e| {
-        panic!("Failed to start server: {}", e);
-    });
+    let s = run(listener, configuration, email_client)
+        .await
+        .unwrap_or_else(|e| {
+            panic!("Failed to start server: {}", e);
+        });
     info!("Server listening on http://{address}");
     s.with_graceful_shutdown(quit_sig).await?;
 

@@ -1,6 +1,10 @@
+use std::sync::Arc;
+
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
-use crate::{configuration::Settings, db, error::Result};
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Form};
+use crate::startup::AppState;
+use crate::{db, error::Result};
+use axum::Extension;
+use axum::{http::StatusCode, response::IntoResponse, Form};
 use serde::{Deserialize, Serialize};
 use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
 use tracing::error;
@@ -38,15 +42,16 @@ impl TryFrom<FormData> for NewSubscriber {
 // region: -- Subscribe Handler
 #[tracing::instrument(
     name = "Adding a new subscriber.",
-    skip(data, configuration),
+    skip(data, state),
     fields(
         email = %data.email,
         name = %data.name,
-        db = %configuration.database.database_name
+        db = %state.configuration.database.database_name
     )
 )]
 pub async fn handler_subscribe(
-    State(configuration): State<Settings>,
+    // State(configuration): State<Settings>,
+    Extension(state): Extension<Arc<AppState>>,
     Form(data): Form<FormData>,
 ) -> Result<impl IntoResponse> {
     let new_subscriber = match Form(data).0.try_into() {
@@ -54,7 +59,7 @@ pub async fn handler_subscribe(
         Err(_) => return Ok(StatusCode::BAD_REQUEST),
     };
 
-    let db = match db::create_db(configuration).await {
+    let db = match db::create_db(state.configuration.clone()).await {
         Ok(db) => db,
         Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
     };
