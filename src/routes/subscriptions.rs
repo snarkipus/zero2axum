@@ -1,10 +1,9 @@
-use std::sync::Arc;
-
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::startup::AppState;
 use crate::{db, error::Result};
 use axum::Extension;
 use axum::{http::StatusCode, response::IntoResponse, Form};
+use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
 use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
 use tracing::error;
@@ -40,6 +39,7 @@ impl TryFrom<FormData> for NewSubscriber {
 }
 
 // region: -- Subscribe Handler
+#[debug_handler]
 #[tracing::instrument(
     name = "Adding a new subscriber.",
     skip(data, state),
@@ -50,8 +50,7 @@ impl TryFrom<FormData> for NewSubscriber {
     )
 )]
 pub async fn handler_subscribe(
-    // State(configuration): State<Settings>,
-    Extension(state): Extension<Arc<AppState>>,
+    Extension(state): Extension<AppState>,
     Form(data): Form<FormData>,
 ) -> Result<impl IntoResponse> {
     let new_subscriber = match Form(data).0.try_into() {

@@ -8,18 +8,17 @@ use axum::{
 
 use hyper::{server::conn::AddrIncoming, Body, Method, Uri};
 use serde_json::json;
-use std::net::TcpListener;
+use std::{net::TcpListener, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
 
-use std::sync::Arc;
-
 use crate::{configuration::Settings, email_client::EmailClient, error, routes};
 
+#[derive(Clone)]
 pub struct AppState {
     pub configuration: Settings,
-    pub email_client: EmailClient,
+    pub email_client: Arc<EmailClient>,
 }
 
 pub async fn run(
@@ -27,10 +26,10 @@ pub async fn run(
     configuration: Settings,
     email_client: EmailClient,
 ) -> Result<Server<AddrIncoming, IntoMakeService<Router<(), Body>>>, std::io::Error> {
-    let state = Arc::new(AppState {
+    let state = AppState {
         configuration,
-        email_client,
-    });
+        email_client: Arc::new(email_client),
+    };
 
     let app = Router::new()
         .route("/", get(routes::handler_hello))

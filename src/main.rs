@@ -24,7 +24,11 @@ async fn main() -> color_eyre::Result<()> {
         .sender()
         .expect("Invalid sender email address.");
 
-    let email_client = EmailClient::new(configuration.email_client.base_url.clone(), sender_email);
+    let email_client = EmailClient::new(
+        configuration.email_client.base_url.clone(),
+        sender_email,
+        configuration.email_client.authorization_token.clone()
+    );
 
     let address = format!(
         "{}:{}",

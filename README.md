@@ -173,3 +173,37 @@ Which one?
 
 > If EmailClient were just a wrapper around a Client instance, the first option would be preferable - we avoid
 wrapping the connection pool twice with Arc. This is not the case though: EmailClient has two data fields attached (base_url and sender). The first implementation allocates new memory to hold a copy of that data every time an App instance is created, while the second shares it among all App instances. That’s why we will be using the second strategy.
+
+#### NOTE:
+- axum-macros crate with `#[debug_handler]` on the route handler makes [debugging](https://docs.rs/axum-macros/latest/axum_macros/attr.debug_handler.html) A LOT easier
+
+Ok, so this might be one of the bigger differences I've seen between Actix and Axum ... the sharing of State information. Where Actix allows the `app_data` to be passed atomically, Axum requires state to be packaged into a struct of some kind.
+
+Regardless, the naive approach of just cloning the entire structure would be "Option 1" ... so we'll have to wrap the EmailClient in an `Arc` by hand
+
+So, for us ... we can do something like (no idea if this is write - had to derive `clone` on the whole thing which seems like it's not quite right):
+
+```rust 
+#[derive(Clone)]
+pub struct AppState {
+    pub configuration: Settings,
+    pub email_client: Arc<EmailClient>,
+}
+```
+Then, we can setup the `AppState` like this in the async `run()` function:
+```rust
+let state = AppState {
+    configuration,
+    email_client: Arc::new(email_client),
+};
+```
+Then, on the handler side, we can do the following to extract `AppState`:
+```rust
+pub async fn handler_subscribe(
+    Extension(state): Extension<AppState>,
+    Form(data): Form<FormData>,
+) -> Result<impl IntoResponse> {...}
+```
+Oddly, that works ... tests are all green.
+
+### 7.2.3 HTTP Mocking with ~~`wiremock`~~ `mockito`
