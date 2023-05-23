@@ -43,10 +43,12 @@ async fn spawn_app() -> TestApp {
         .sender()
         .expect("Invalid sender email address.");
 
+    let timeout = configuration.email_client.timeout();
     let email_client = EmailClient::new(
         configuration.email_client.base_url.clone(),
         sender_email,
         configuration.email_client.authorization_token.clone(),
+        timeout,
     );
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
