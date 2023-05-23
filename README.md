@@ -207,3 +207,7 @@ pub async fn handler_subscribe(
 Oddly, that works ... tests are all green.
 
 ### 7.2.3 HTTP Mocking with ~~`wiremock`~~ `mockito`
+Long story short - just use `wiremock`.
+#### Issues
+- no match trait to implement, only an `Into<Matcher>` which can return one of the `Matcher` enum types ... probably a way to do that, but beyond my skill level
+- no exposed `.with_delay()` method ... you have to use `.with_chunked_body()` and pass a closure ... and the sleep thread seems to be block in the main test thread
