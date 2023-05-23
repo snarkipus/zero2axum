@@ -27,7 +27,7 @@ async fn main() -> color_eyre::Result<()> {
     let email_client = EmailClient::new(
         configuration.email_client.base_url.clone(),
         sender_email,
-        configuration.email_client.authorization_token.clone()
+        configuration.email_client.authorization_token.clone(),
     );
 
     let address = format!(

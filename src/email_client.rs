@@ -73,7 +73,7 @@ mod tests {
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
     use fake::{Fake, Faker};
-    use mockito::{Server, Matcher};
+    use mockito::{Matcher, Server};
     use secrecy::Secret;
     use serde_json::json;
 
@@ -97,23 +97,19 @@ mod tests {
             .mock("POST", "/email")
             .match_header("X-Postmark-Server-Token", authorization_token.as_str())
             .match_header("Content-Type", "application/json")
-            .match_body(
-                Matcher::JsonString(
-                    json!({
-                        "From": sender.as_ref(),
-                        "To": subscriber_email.as_ref(),
-                        "Subject": subject,
-                        "HtmlContent": html_content,
-                        "TextContent": "",
-                    })
-                    .to_string(),
-                ),
-            )
+            .match_body(Matcher::JsonString(
+                json!({
+                    "From": sender.as_ref(),
+                    "To": subscriber_email.as_ref(),
+                    "Subject": subject,
+                    "HtmlContent": html_content,
+                    "TextContent": "",
+                })
+                .to_string(),
+            ))
             .with_status(200)
             .create_async()
             .await;
-
-
 
         // Act
         let _ = email_client
