@@ -10,10 +10,57 @@ use hyper::{server::conn::AddrIncoming, Body, Method, Uri};
 use serde_json::json;
 use std::{net::TcpListener, sync::Arc};
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::{configuration::Settings, email_client::EmailClient, error, routes};
+
+type ZServer = Server<AddrIncoming, IntoMakeService<Router<(), Body>>>;
+
+pub struct Application {
+    port: u16,
+    server: ZServer,
+}
+
+impl Application {
+    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
+        let sender_email = configuration
+            .email_client
+            .sender()
+            .expect("Invalid sender email address.");
+
+        let timeout = configuration.email_client.timeout();
+        let email_client = EmailClient::new(
+            configuration.email_client.base_url.clone(),
+            sender_email,
+            configuration.email_client.authorization_token.clone(),
+            timeout,
+        );
+
+        let address = format!(
+            "{}:{}",
+            configuration.application.host, configuration.application.port
+        );
+        let listener = TcpListener::bind(&address)?;
+        let port = listener.local_addr().unwrap().port();
+        let server = run(listener, configuration, email_client).await?;
+
+        Ok(Self { port, server })
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    pub async fn run_until_stopped(self) -> Result<(), hyper::Error> {
+        let quit_sig = async {
+            _ = tokio::signal::ctrl_c().await;
+            warn!("Received Ctrl-C, shutting down gracefully...");
+        };
+
+        self.server.with_graceful_shutdown(quit_sig).await
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,7 +72,7 @@ pub async fn run(
     listener: TcpListener,
     configuration: Settings,
     email_client: EmailClient,
-) -> Result<Server<AddrIncoming, IntoMakeService<Router<(), Body>>>, std::io::Error> {
+) -> Result<ZServer, std::io::Error> {
     let state = AppState {
         configuration,
         email_client: Arc::new(email_client),

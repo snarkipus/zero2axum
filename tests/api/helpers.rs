@@ -1,10 +1,8 @@
 use once_cell::sync::Lazy;
-use std::net::TcpListener;
-use tracing::info;
 use uuid::Uuid;
 use zero2axum::{
     configuration::{get_configuration, Settings},
-    email_client::EmailClient,
+    startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -31,35 +29,20 @@ pub struct TestApp {
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
-    let mut configuration = get_configuration().expect("Failed to read configuration.");
-    configuration.database.database_name = Uuid::new_v4().to_string();
+    let mut configuration = {
+        let mut c = get_configuration().expect("Failed to read configuration.");
+        c.database.database_name = Uuid::new_v4().to_string();
+        c.application.port = 0;
+        c
+    };
 
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-
-    let timeout = configuration.email_client.timeout();
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url.clone(),
-        sender_email,
-        configuration.email_client.authorization_token.clone(),
-        timeout,
-    );
-
-    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
-    configuration.application.port = listener.local_addr().unwrap().port();
-
-    let s = zero2axum::startup::run(listener, configuration.clone(), email_client)
+    let application = Application::build(configuration.clone())
         .await
-        .unwrap_or_else(|e| {
-            panic!("Failed to start server: {}", e);
-        });
-    info!(
-        "Server listening on http://{}:{}",
-        configuration.application.host, configuration.application.port
-    );
-    let _ = tokio::spawn(s);
+        .expect("Failed to build application.");
+
+    configuration.application.port = application.port();
+
+    let _ = tokio::spawn(application.run_until_stopped());
     TestApp { configuration }
 }
 // endregion: -- spawn_app
