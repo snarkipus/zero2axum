@@ -25,6 +25,21 @@ pub struct TestApp {
     pub configuration: Settings,
 }
 
+impl TestApp {
+    pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
+        reqwest::Client::new()
+            .post(&format!(
+                "{}/subscriptions",
+                &self.configuration.application.host
+            ))
+            .header("Content-Type", "application/json")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+}
+
 #[allow(clippy::let_underscore_future)]
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);

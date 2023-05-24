@@ -9,7 +9,6 @@ use crate::subscriptions::helpers::migrate_db;
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let app = spawn_app().await;
-    let client = reqwest::Client::new();
     let db = match db::create_db(app.configuration.clone()).await {
         Ok(db) => db,
         Err(e) => panic!("Failed to create database: {}", e),
@@ -17,19 +16,10 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     migrate_db(app.configuration.clone())
         .await
         .expect("Failed to migrate database.");
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     // Act
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-    let response = client
-        .post(&format!(
-            "http://{}:{}/subscribe",
-            &app.configuration.application.host, &app.configuration.application.port
-        ))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .await
-        .expect("Failed to execute request.");
+    let response = app.post_subscriptions(body.into()).await;
 
     // Assert
     assert_eq!(200, response.status().as_u16());
@@ -64,19 +54,9 @@ async fn subscribe_returns_a_422_when_data_is_missing(
 ) {
     // Arrange
     let app = spawn_app().await;
-    let client = reqwest::Client::new();
-
+    
     // Act
-    let response = client
-        .post(&format!(
-            "http://{}:{}/subscribe",
-            &app.configuration.application.host, &app.configuration.application.port
-        ))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(invalid_body.to_string())
-        .send()
-        .await
-        .expect("Failed to execute request.");
+    let response = app.post_subscriptions(invalid_body.into()).await;
 
     // Assert
     assert_eq!(
