@@ -54,7 +54,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(
 ) {
     // Arrange
     let app = spawn_app().await;
-    
+
     // Act
     let response = app.post_subscriptions(invalid_body.into()).await;
 

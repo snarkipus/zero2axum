@@ -1,10 +1,4 @@
 # Build Log & Changes
-<style>
-  code {
-    white-space: pre-wrap !important;
-    word-break: break-word;
-  }
-</style>
 
 ## Rust Resources
 - [Zero To Production In Rust](https://www.zero2prod.com/)

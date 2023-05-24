@@ -80,13 +80,14 @@ pub async fn insert_subscriber(
     db: &Surreal<Client>,
     new_subscriber: NewSubscriber,
 ) -> std::result::Result<surrealdb::Response, surrealdb::Error> {
-    let sql = "INSERT INTO subscriptions (email, name, subscribed_at) VALUES ($email, $name, $subscribed_at)";
+    let sql = "INSERT INTO subscriptions (email, name, subscribed_at, status) VALUES ($email, $name, $subscribed_at, $status)";
 
     let response = db
         .query(sql)
         .bind(("email", new_subscriber.email.as_ref()))
         .bind(("name", new_subscriber.name.as_ref()))
         .bind(("subscribed_at", chrono::Utc::now().to_rfc3339()))
+        .bind(("status", "confirmed"))
         .await
         .map_err(|e| {
             error!("Failed to execute query: {e}");

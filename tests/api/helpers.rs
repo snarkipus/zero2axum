@@ -29,11 +29,11 @@ impl TestApp {
     pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
         reqwest::Client::new()
             .post(&format!(
-                "{}/subscriptions",
-                &self.configuration.application.host
+                "http://{}:{}/subscribe",
+                &self.configuration.application.host, &self.configuration.application.port
             ))
-            .header("Content-Type", "application/json")
-            .body(body)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body.to_string())
             .send()
             .await
             .expect("Failed to execute request.")

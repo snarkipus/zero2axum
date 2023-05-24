@@ -39,5 +39,6 @@ DATABASE_URL=http://${DB_HOST}:${DB_PORT}
 export DATABASE_URL
 
 surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/script_migration.surql
+surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/add_status_to_subscriptions.surql
 
 >&2 echo "SurrealDB migrations applied! Let's Go!!!!"

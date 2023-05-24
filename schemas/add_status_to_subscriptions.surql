@@ -1,0 +1,1 @@
+DEFINE FIELD status ON subscriptions TYPE string ASSERT $value != NONE;
