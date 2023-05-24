@@ -205,3 +205,137 @@ Long story short - just use `wiremock`.
 #### Issues
 - no match trait to implement, only an `Into<Matcher>` which can return one of the `Matcher` enum types ... probably a way to do that, but beyond my skill level
 - no exposed `.with_delay()` method ... you have to use `.with_chunked_body()` and pass a closure ... and the sleep thread seems to be block in the main test thread
+
+### 7.6 Database Stuff
+Note: ChatGPT is ***really good*** at generating ERDs from SQL using mermaid syntax
+
+#### 3.8.4.2.3: Initial Migration
+##### SQL
+```sql
+CREATE TABLE subscriptions(
+  id uuid NOT NULL,
+  PRIMARY KEY (id),
+  email TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  subscribed_at timestamptz NOT NULL
+);
+```
+##### Equivalent SurrealQL
+```sql
+DEFINE TABLE subscriptions SCHEMAFULL;
+
+DEFINE FIELD id ON subscriptions TYPE string ASSERT $value != NONE;
+DEFINE INDEX id ON TABLE subscriptions COLUMNS id UNIQUE;
+DEFINE FIELD email ON subscriptions TYPE string ASSERT $value != NONE AND is::email($value);
+DEFINE INDEX email ON TABLE subscriptions COLUMNS email UNIQUE;
+DEFINE FIELD name ON subscriptions TYPE string ASSERT $value != NONE;
+DEFINE FIELD subscribed_at ON subscriptions TYPE datetime ASSERT $value != NONE;
+```
+```mermaid
+classDiagram
+    class subscriptions{
+        +id : uuid [PK]
+        +email : TEXT [UQ]
+        +name : TEXT
+        +subscribed_at : timestamptz
+    }
+```
+
+#### 7.6.4.1: Schema Update Migration
+##### SQL
+```sql
+ALTER TABLE subscriptions ADD COLUMN status TEXT NULL;
+```
+##### Equivalent SurrealQL
+```sql
+DEFINE FIELD status ON subscriptions;
+```
+```mermaid
+classDiagram
+    class subscriptions{
+        +id : uuid [PK]
+        +email : TEXT [UQ]
+        +name : TEXT
+        +subscribed_at : timestamptz
+        +status : TEXT
+    }
+```
+#### 7.6.4.3: Backfill & Mark as NOT NULL
+##### SQL
+```sql
+BEGIN;
+  -- Backfill `status` for historical entries
+  UPDATE subscriptions
+    SET status = 'confirmed'
+    WHERE status IS NULL;
+  -- Make `status` mandatory
+    ALTER TABLE subscriptions ALTER COLUMN status SET NOT NULL;
+COMMIT;
+```
+##### Equivalent SurrealQL
+```sql
+BEGIN TRANSACTION;
+UPDATE subscriptions SET status = 'confirmed' WHERE status = NONE;
+DEFINE FIELD status ON subscriptions TYPE string ASSERT $value != NONE;
+COMMIT TRANSACTION;
+```
+```mermaid
+classDiagram
+    class subscriptions{
+        +id : uuid [PK]
+        +email : TEXT [UQ]
+        +name : TEXT
+        +subscribed_at : timestamptz
+        +status : TEXT
+    }
+```
+#### 7.6.5 New Table
+
+##### SQL
+```sql
+CREATE TABLE subscription_tokens(
+  subscription_token TEXT NOT NULL,
+  subscriber_id uuid NOT NULL
+  REFERENCES subscriptions (id),
+  PRIMARY KEY (subscription_token)
+);
+```
+```mermaid
+classDiagram
+    direction LR
+    class subscriptions{
+        +id : uuid [PK]
+        +email : TEXT [UQ]
+        +name : TEXT
+        +subscribed_at : timestamptz
+        +status : TEXT
+    }
+    class subscription_tokens{
+        +subscription_token : TEXT [PK]
+        +subscriber_id : uuid
+    }
+    subscription_tokens "1" --> "*" subscriptions : subscriber_id
+```
+In this diagram:
+
+- The new table `subscription_tokens` is added to the class diagram. It has two fields: `subscription_token` and `subscriber_id`.
+- `subscription_token` : `TEXT [PK]` indicates that the `subscription_token` field is a primary key in the `subscription_tokens` table.
+- `subscriber_id` : `uuid` indicates that the `subscriber_id` field is of type `uuid`.
+- The arrow from `subscription_tokens` to `subscriptions` with `subscriber_id` as the label indicates that `subscriber_id` is a foreign key referencing the `id` field of the `subscriptions` table. The `"1"` and `"*"` symbols on the sides of the arrow indicate cardinality, meaning that each `subscription_token` is associated with exactly one `subscription`, and each `subscription` can be associated with multiple `subscription_tokens`.
+
+Now, what's interesting is that in SurrealDB, the relationship between the `subscription_tokens` table and the `subscriptions` table isn't handled using a foreign key. The important fact is:
+>  each `subscription_token` is associated with exactly one `subscription`, and each `subscription` can be associated with multiple `subscription_tokens`
+
+ It's probably handled using a graphy edge created by the `RELATE` statement. I'm guessing something along the lines of:
+```sql
+RELATE subscriptions:id->create->subscriber_id:id SET subscription_token = $token;
+```
+For now, we'll just create the table and wait for Luca to explain how & when we're generating tokens.
+##### Equivalent SurrealQL
+```sql
+DEFINE TABLE subscription_tokens SCHEMAFULL;
+
+DEFINE FIELD subscription_token ON subscription_tokens TYPE string ASSERT $value != NONE;
+DEFINE FIELD subscriber_id ON TABLE subscription_tokens TYPE string ASSERT $value != NONE;
+DEFINE INDEX subscriber_id on TABLE subscription_tokens COLUMNS subscriber_id UNIQUE;
+```
