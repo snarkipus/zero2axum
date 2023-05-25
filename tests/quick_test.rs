@@ -26,7 +26,7 @@ async fn quick_test() -> color_eyre::Result<()> {
     let response = client
         .post(&format!("{}/subscribe", &address))
         .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
+        .body(body.to_string())
         .send()
         .await
         .expect("Failed to execute request.");

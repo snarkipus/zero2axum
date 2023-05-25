@@ -41,4 +41,6 @@ export DATABASE_URL
 surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/script_migration.surql
 surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/add_status_to_subscriptions.surql
 surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/make_status_not_null_in_subscriptions.surql
+surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/create_subscription_tokens_table.surql
+
 >&2 echo "SurrealDB migrations applied! Let's Go!!!!"

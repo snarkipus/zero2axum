@@ -4,18 +4,19 @@ use surrealdb::{
     opt::auth::Root,
     Surreal,
 };
+use surrealdb_migrations::SurrealdbMigrations;
 
 use crate::configuration::Settings;
 
 // region: -- SurrealDB: Initialize
 #[tracing::instrument(
-  name = "Creating new SurrealDB",
+  name = "Creating new SurrealDB Client Connection",
   skip(configuration),
   fields(
       db = %configuration.database.database_name
   )
 )]
-pub async fn create_db(
+pub async fn create_db_client(
     configuration: Settings,
 ) -> std::result::Result<Surreal<Client>, surrealdb::Error> {
     let connection_string = format!(
@@ -41,3 +42,23 @@ pub async fn create_db(
     Ok(db)
 }
 // endregion: --- SurrealDB: Initialize
+
+// region: -- SurrealDB: Initialize & Migration
+#[tracing::instrument(
+    name = "Performing SurrealDB Migrations",
+    skip(configuration),
+    fields(
+        db = %configuration.database.database_name
+    )
+  )]
+pub async fn migrate_db(configuration: Settings) -> Result<(), surrealdb::Error> {
+    let db_configuration = configuration.database.with_db();
+
+    SurrealdbMigrations::new(db_configuration)
+        .up()
+        .await
+        .expect("Failed to run migrations.");
+
+    Ok(())
+}
+// endregion: --- SurrealDB: Initialize & Migration

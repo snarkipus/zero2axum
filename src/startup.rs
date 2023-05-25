@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use axum::{
     extract::Extension,
     middleware,
@@ -82,10 +83,9 @@ pub async fn run(
         .route("/", get(routes::handler_hello))
         .route("/health_check", get(routes::handler_health_check))
         .route("/subscribe", post(routes::handler_subscribe))
-        .layer(middleware::map_response(main_response_mapper))
+        // .layer(middleware::map_response(main_response_mapper))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
-                info!("->> {:<8} - main_trace_layer", "TRACE_LAYER");
                 let uuid = Uuid::new_v4();
                 tracing::info_span!(
                     "request",
@@ -105,6 +105,7 @@ pub async fn run(
     Ok(server)
 }
 
+#[allow(dead_code)]
 async fn main_response_mapper(
     // db: Option<Surreal<Client>>,
     _uri: Uri,

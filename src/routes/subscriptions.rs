@@ -6,7 +6,6 @@ use axum::{http::StatusCode, response::IntoResponse, Form};
 use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
 use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
-use tracing::error;
 
 #[derive(Deserialize, Debug)]
 pub struct FormData {
@@ -44,30 +43,47 @@ impl TryFrom<FormData> for NewSubscriber {
     name = "Adding a new subscriber.",
     skip(data, state),
     fields(
-        email = %data.email,
-        name = %data.name,
-        db = %state.configuration.database.database_name
+        request_id = %uuid::Uuid::new_v4(),
+        subscriber_email = %data.email,
+        subscriber_name = %data.name,
+        db_name = %state.configuration.database.database_name
     )
 )]
 pub async fn handler_subscribe(
     Extension(state): Extension<AppState>,
     Form(data): Form<FormData>,
 ) -> Result<impl IntoResponse> {
-    let new_subscriber = match Form(data).0.try_into() {
+    let new_subscriber: NewSubscriber = match Form(data).0.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return Ok(StatusCode::BAD_REQUEST),
     };
 
-    let db = match db::create_db(state.configuration.clone()).await {
+    let db = match db::create_db_client(state.configuration.clone()).await {
         Ok(db) => db,
         Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
     };
-    let results = insert_subscriber(&db, new_subscriber).await;
 
-    match results.unwrap().check() {
-        Ok(_) => Ok(StatusCode::OK),
-        Err(_) => Ok(StatusCode::INTERNAL_SERVER_ERROR),
+    let results = insert_subscriber(&db, new_subscriber.clone()).await;
+
+    if results.unwrap().check().is_err() {
+        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
     }
+
+    let email_client = state.email_client;
+
+    if email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome!",
+            "Welcome to our newsletter!",
+            "Welcome to our newsletter!",
+        )
+        .await
+        .is_err()
+    {
+        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+    Ok(StatusCode::OK)
 }
 // endregion: -- Subscribe Handler
 
@@ -90,7 +106,7 @@ pub async fn insert_subscriber(
         .bind(("status", "confirmed"))
         .await
         .map_err(|e| {
-            error!("Failed to execute query: {e}");
+            tracing::error!("Failed to execute query: {e}");
             e
         })?;
     Ok(response)

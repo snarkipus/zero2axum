@@ -1,22 +1,24 @@
-use rstest::rstest;
-use zero2axum::{db, routes::FormData};
-
 use crate::helpers::spawn_app;
 use crate::subscriptions::helpers::migrate_db;
+use rstest::rstest;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, ResponseTemplate};
+use zero2axum::{db, routes::FormData};
 
 // region: -- POST Form: 200 OK
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let app = spawn_app().await;
-    let db = match db::create_db(app.configuration.clone()).await {
-        Ok(db) => db,
-        Err(e) => panic!("Failed to create database: {}", e),
-    };
-    migrate_db(app.configuration.clone())
-        .await
-        .expect("Failed to migrate database.");
+
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
 
     // Act
     let response = app.post_subscriptions(body.into()).await;
@@ -25,6 +27,11 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     assert_eq!(200, response.status().as_u16());
 
     let sql = "SELECT email, name FROM subscriptions";
+
+    let db = match db::create_db_client(app.configuration.clone()).await {
+        Ok(db) => db,
+        Err(e) => panic!("Failed to create database: {}", e),
+    };
 
     let mut res = db
         .query(sql)
@@ -103,3 +110,31 @@ async fn subscribe_returns_a_200_when_fields_are_present_but_empty(
     );
 }
 // endregion: -- POST Form: 200 w/fields present but empty
+
+// region: -- POST Form: Subscribe sends a confirmation email for valid data
+#[tokio::test]
+async fn subscribe_sends_a_confirmation_email_for_valid_data() {
+    // Arrange
+    let app = spawn_app().await;
+    let _ = match db::create_db_client(app.configuration.clone()).await {
+        Ok(db) => db,
+        Err(e) => panic!("Failed to create database: {}", e),
+    };
+    migrate_db(app.configuration.clone())
+        .await
+        .expect("Failed to migrate database.");
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    // Act
+    app.post_subscriptions(body.into()).await;
+
+    // Assert
+}
+// endregion: -- POST Form: Subscribe sends a confirmation email for valid data

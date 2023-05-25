@@ -1,7 +1,9 @@
 use once_cell::sync::Lazy;
 use uuid::Uuid;
+use wiremock::MockServer;
 use zero2axum::{
     configuration::{get_configuration, Settings},
+    db::migrate_db,
     startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -23,6 +25,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 // region: -- spawn_app
 pub struct TestApp {
     pub configuration: Settings,
+    pub email_server: MockServer,
 }
 
 impl TestApp {
@@ -44,12 +47,19 @@ impl TestApp {
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
+    let email_server = MockServer::start().await;
+
     let mut configuration = {
         let mut c = get_configuration().expect("Failed to read configuration.");
         c.database.database_name = Uuid::new_v4().to_string();
         c.application.port = 0;
+        c.email_client.base_url = email_server.uri();
         c
     };
+
+    migrate_db(configuration.clone())
+        .await
+        .expect("Failed to migrate database.");
 
     let application = Application::build(configuration.clone())
         .await
@@ -58,6 +68,10 @@ pub async fn spawn_app() -> TestApp {
     configuration.application.port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());
-    TestApp { configuration }
+
+    TestApp {
+        configuration,
+        email_server,
+    }
 }
 // endregion: -- spawn_app
