@@ -1,5 +1,4 @@
 use crate::helpers::spawn_app;
-use crate::subscriptions::helpers::migrate_db;
 use rstest::rstest;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
@@ -116,19 +115,12 @@ async fn subscribe_returns_a_200_when_fields_are_present_but_empty(
 async fn subscribe_sends_a_confirmation_email_for_valid_data() {
     // Arrange
     let app = spawn_app().await;
-    let _ = match db::create_db_client(app.configuration.clone()).await {
-        Ok(db) => db,
-        Err(e) => panic!("Failed to create database: {}", e),
-    };
-    migrate_db(app.configuration.clone())
-        .await
-        .expect("Failed to migrate database.");
+
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     Mock::given(path("/email"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
-        .expect(1)
         .mount(&app.email_server)
         .await;
 
@@ -136,5 +128,21 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
     app.post_subscriptions(body.into()).await;
 
     // Assert
+    let email_request = &app.email_server.received_requests().await.unwrap()[0];
+    let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+
+    let get_link = |s: &str| {
+        let links: Vec<_> = linkify::LinkFinder::new()
+            .links(s)
+            .filter(|l| *l.kind() == linkify::LinkKind::Url)
+            .collect();
+        assert_eq!(links.len(), 1);
+        links[0].as_str().to_owned()
+    };
+
+    let html_link = get_link(body["HtmlBody"].as_str().unwrap());
+    let text_link = get_link(body["TextBody"].as_str().unwrap());
+
+    assert_eq!(html_link, text_link);
 }
 // endregion: -- POST Form: Subscribe sends a confirmation email for valid data

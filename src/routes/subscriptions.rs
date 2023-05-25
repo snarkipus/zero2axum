@@ -1,4 +1,5 @@
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
+use crate::email_client::EmailClient;
 use crate::startup::AppState;
 use crate::{db, error::Result};
 use axum::Extension;
@@ -63,21 +64,13 @@ pub async fn handler_subscribe(
         Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    let results = insert_subscriber(&db, new_subscriber.clone()).await;
+    let results = insert_subscriber(db, new_subscriber.clone()).await;
 
     if results.unwrap().check().is_err() {
         return Ok(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    let email_client = state.email_client;
-
-    if email_client
-        .send_email(
-            new_subscriber.email,
-            "Welcome!",
-            "Welcome to our newsletter!",
-            "Welcome to our newsletter!",
-        )
+    if send_confirmation_email(&state.email_client, new_subscriber)
         .await
         .is_err()
     {
@@ -87,13 +80,38 @@ pub async fn handler_subscribe(
 }
 // endregion: -- Subscribe Handler
 
+// region: -- Send Confirmation Email
+#[tracing::instrument(
+    name = "Sending confirmation email.",
+    skip(email_client, new_subscriber)
+)]
+pub async fn send_confirmation_email(
+    email_client: &EmailClient,
+    new_subscriber: NewSubscriber,
+) -> std::result::Result<(), reqwest::Error> {
+    let confirmation_link = "https://there-is-no-such-domain.com/subscriptions/confirm";
+    let plain_body = format!(
+        "Welcome to our newsletter!\nVisit {} to confirm your subscription.",
+        confirmation_link
+    );
+    let html_body = format!(
+        "Welcome to our newsletter!<br />\
+        Click <a href=\"{}\">here</a> to confirm your subscription.",
+        confirmation_link
+    );
+    email_client
+        .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
+        .await
+}
+// endregion: -- Send Confirmation Email
+
 // region: -- SurrealDB Store
 #[tracing::instrument(
     name = "Saving new subscriber details to SurrealDB",
     skip(new_subscriber, db)
 )]
 pub async fn insert_subscriber(
-    db: &Surreal<Client>,
+    db: Surreal<Client>,
     new_subscriber: NewSubscriber,
 ) -> std::result::Result<surrealdb::Response, surrealdb::Error> {
     let sql = "INSERT INTO subscriptions (email, name, subscribed_at, status) VALUES ($email, $name, $subscribed_at, $status)";

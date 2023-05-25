@@ -279,16 +279,6 @@ UPDATE subscriptions SET status = 'confirmed' WHERE status = NONE;
 DEFINE FIELD status ON subscriptions TYPE string ASSERT $value != NONE;
 COMMIT TRANSACTION;
 ```
-```mermaid
-classDiagram
-    class subscriptions{
-        +id : uuid [PK]
-        +email : TEXT [UQ]
-        +name : TEXT
-        +subscribed_at : timestamptz
-        +status : TEXT
-    }
-```
 #### 7.6.5 New Table
 
 ##### SQL
@@ -339,3 +329,6 @@ DEFINE FIELD subscription_token ON subscription_tokens TYPE string ASSERT $value
 DEFINE FIELD subscriber_id ON TABLE subscription_tokens TYPE string ASSERT $value != NONE;
 DEFINE INDEX subscriber_id on TABLE subscription_tokens COLUMNS subscriber_id UNIQUE;
 ```
+### 7.7 Sending a Confirmation Email
+Things got a little squirly here, and in the first attempt I neglected to set the mock server's email address properly in `tests/api/helpers.rs: spawn_app()`. Not trusting mockito and struggling to debug this, I just reverted to `wiremock` for all mocking/testing. Turns out this was probably wise, since email verification depends on the `received_requests()` method from `wiremock` and this would have been some effort to do with `mockito` ... maybe just extend it? I dunno ...
+
