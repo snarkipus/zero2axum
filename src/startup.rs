@@ -1,3 +1,4 @@
+use axum::extract::FromRef;
 #[allow(unused_imports)]
 use axum::{
     extract::Extension,
@@ -9,7 +10,7 @@ use axum::{
 
 use hyper::{server::conn::AddrIncoming, Body, Method, Uri};
 use serde_json::json;
-use std::{net::TcpListener, sync::Arc};
+use std::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -66,7 +67,19 @@ impl Application {
 #[derive(Clone)]
 pub struct AppState {
     pub configuration: Settings,
-    pub email_client: Arc<EmailClient>,
+    pub email_client: EmailClient,
+}
+
+impl FromRef<AppState> for Settings {
+    fn from_ref(state: &AppState) -> Settings {
+        state.configuration.clone()
+    }
+}
+
+impl FromRef<AppState> for EmailClient {
+    fn from_ref(state: &AppState) -> EmailClient {
+        state.email_client.clone()
+    }
 }
 
 pub async fn run(
@@ -76,7 +89,7 @@ pub async fn run(
 ) -> Result<ZServer, std::io::Error> {
     let state = AppState {
         configuration,
-        email_client: Arc::new(email_client),
+        email_client,
     };
 
     let app = Router::new()
@@ -95,7 +108,7 @@ pub async fn run(
                 )
             }),
         )
-        .layer(Extension(state));
+        .with_state(state);
 
     let server = Server::from_tcp(listener)
         .unwrap_or_else(|e| {

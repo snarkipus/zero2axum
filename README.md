@@ -332,3 +332,14 @@ DEFINE INDEX subscriber_id on TABLE subscription_tokens COLUMNS subscriber_id UN
 ### 7.7 Sending a Confirmation Email
 Things got a little squirly here, and in the first attempt I neglected to set the mock server's email address properly in `tests/api/helpers.rs: spawn_app()`. Not trusting mockito and struggling to debug this, I just reverted to `wiremock` for all mocking/testing. Turns out this was probably wise, since email verification depends on the `received_requests()` method from `wiremock` and this would have been some effort to do with `mockito` ... maybe just extend it? I dunno ...
 
+#### Detour: Refactor State Management
+
+I was lamenting that using `Extract()` state was shared as a monolith and envious of the fact that Actix had a much more elegant pattern. It turns out that Axum does as well. In fact, there's some pretty good reasons _not_ to use the `Extract()` method ... namely type safety and runtime explosions.
+
+**[Axum Blog Post](https://tokio.rs/blog/2022-11-25-announcing-axum-0-6-0)**
+> Previously the recommended way to share state with handlers was to use the Extension middleware and extractor: ...<br> However this wasn't type safe, so if you forgot .layer(Extension(...)) things would compile just fine but you'd get runtime errors when calling handler ...<br>In 0.6 you can use the new State extractor which works similarly to Extension but is type safe...
+
+**[Axum State for Reqwest Client](https://stackoverflow.com/questions/75727029/axum-state-for-reqwest-client)**<br>
+Turns out someone else tried to do this ... just need the `FromRef` trait which can be derived via macro
+
+**[Axum Docs: axum::extract::State Substates](https://docs.rs/axum/latest/axum/extract/struct.State.html#substates)**

@@ -1,8 +1,9 @@
+use crate::configuration::Settings;
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
 use crate::startup::AppState;
 use crate::{db, error::Result};
-use axum::Extension;
+use axum::extract::State;
 use axum::{http::StatusCode, response::IntoResponse, Form};
 use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
@@ -39,19 +40,20 @@ impl TryFrom<FormData> for NewSubscriber {
 }
 
 // region: -- Subscribe Handler
-#[debug_handler]
+#[debug_handler(state = AppState)]
 #[tracing::instrument(
     name = "Adding a new subscriber.",
-    skip(data, state),
+    skip(data, configuration, email_client),
     fields(
         request_id = %uuid::Uuid::new_v4(),
         subscriber_email = %data.email,
         subscriber_name = %data.name,
-        db_name = %state.configuration.database.database_name
+        db_name = %configuration.database.database_name
     )
 )]
 pub async fn handler_subscribe(
-    Extension(state): Extension<AppState>,
+    State(configuration): State<Settings>,
+    State(email_client): State<EmailClient>,
     Form(data): Form<FormData>,
 ) -> Result<impl IntoResponse> {
     let new_subscriber: NewSubscriber = match Form(data).0.try_into() {
@@ -59,7 +61,7 @@ pub async fn handler_subscribe(
         Err(_) => return Ok(StatusCode::BAD_REQUEST),
     };
 
-    let db = match db::create_db_client(state.configuration.clone()).await {
+    let db = match db::create_db_client(configuration.clone()).await {
         Ok(db) => db,
         Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
     };
@@ -70,7 +72,7 @@ pub async fn handler_subscribe(
         return Ok(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    if send_confirmation_email(&state.email_client, new_subscriber)
+    if send_confirmation_email(&email_client, new_subscriber)
         .await
         .is_err()
     {
