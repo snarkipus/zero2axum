@@ -20,21 +20,5 @@ async fn quick_test() -> color_eyre::Result<()> {
     // health_check handler tests
     hc.do_get("/health_check").await?.print().await?;
 
-    // subscribe handler tests -- application/x-www-form-urlencoded
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-    let client = reqwest::Client::new();
-    let response = client
-        .post(&format!("{}/subscribe", &address))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body.to_string())
-        .send()
-        .await
-        .expect("Failed to execute request.");
-    println!("\n=== Response for POST http://{}/subscribe", &address);
-    println!("=> Status \t : {}", response.status());
-    println!("=> Headers \t : {:#?}", response.headers());
-    println!("=> Response Body : {:#?}", response.text().await?);
-    println!("===");
-
     Ok(())
 }

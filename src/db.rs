@@ -1,4 +1,7 @@
+use std::ops::Deref;
+
 use secrecy::ExposeSecret;
+use serde::{Serialize, Deserialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws, Wss},
     opt::auth::Root,
@@ -7,6 +10,23 @@ use surrealdb::{
 use surrealdb_migrations::SurrealdbMigrations;
 
 use crate::configuration::Settings;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Id(String);
+
+impl AsRef<str> for Id {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for Id {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 // region: -- SurrealDB: Initialize
 #[tracing::instrument(

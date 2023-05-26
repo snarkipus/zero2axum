@@ -15,7 +15,9 @@ use tower_http::trace::TraceLayer;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::{configuration::Settings, email_client::EmailClient, error, routes};
+use crate::{
+    configuration::Settings, email_client::EmailClient, error, routes, routes::handler_confirm,
+};
 
 type ZServer = Server<AddrIncoming, IntoMakeService<Router<(), Body>>>;
 
@@ -45,7 +47,11 @@ impl Application {
         );
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, configuration, email_client).await?;
+        let server = run(
+            listener,
+            configuration,
+            email_client,
+        ).await?;
 
         Ok(Self { port, server })
     }
@@ -68,6 +74,7 @@ impl Application {
 pub struct AppState {
     pub configuration: Settings,
     pub email_client: EmailClient,
+    pub base_url: ApplicationBaseUrl,
 }
 
 impl FromRef<AppState> for Settings {
@@ -82,12 +89,22 @@ impl FromRef<AppState> for EmailClient {
     }
 }
 
+impl FromRef<AppState> for ApplicationBaseUrl {
+    fn from_ref(state: &AppState) -> ApplicationBaseUrl {
+        state.base_url.clone()
+    }
+}
+
+#[derive(Clone)]
+pub struct ApplicationBaseUrl(pub String);
+
 pub async fn run(
     listener: TcpListener,
     configuration: Settings,
     email_client: EmailClient,
 ) -> Result<ZServer, std::io::Error> {
     let state = AppState {
+        base_url: ApplicationBaseUrl(configuration.application.base_url.clone()),
         configuration,
         email_client,
     };
@@ -96,6 +113,7 @@ pub async fn run(
         .route("/", get(routes::handler_hello))
         .route("/health_check", get(routes::handler_health_check))
         .route("/subscribe", post(routes::handler_subscribe))
+        .route("/subscribe/confirm", get(handler_confirm))
         // .layer(middleware::map_response(main_response_mapper))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {

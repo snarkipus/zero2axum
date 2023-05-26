@@ -38,7 +38,7 @@ serde-aux = "4.2.0"
 unicode-segmentation = "1.10.1"
 validator = "0.16.0"
 fake = "2.6.1"
-rand = "0.8.5"
+rand = { version = "0.8.5", features = ["std_rng"] }
 axum-macros = "0.3.7"
 
 [dependencies.reqwest]

@@ -1,21 +1,21 @@
 use crate::helpers::spawn_app;
 use rstest::rstest;
+use surrealdb::sql::Thing;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
-use zero2axum::{db, routes::FormData};
+use zero2axum::db::{self, Id};
+use zero2axum::routes::Subscription;
 
 // region: -- POST Form: 200 OK
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let app = spawn_app().await;
-
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     Mock::given(path("/email"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
-        .expect(1)
         .mount(&app.email_server)
         .await;
 
@@ -24,29 +24,57 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     // Assert
     assert_eq!(200, response.status().as_u16());
+}
+// endregion: -- POST Form: 200 OK
 
-    let sql = "SELECT email, name FROM subscriptions";
+// region: -- POST Form: Subscribe persists the new subscriber
+#[tokio::test]
+async fn subscribe_persists_the_new_subscriber() {
+    // Arrange
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+
+    // Act
+    app.post_subscriptions(body.into()).await;
+
+    // Assert
     let db = match db::create_db_client(app.configuration.clone()).await {
         Ok(db) => db,
         Err(e) => panic!("Failed to create database: {}", e),
     };
+    
+    #[derive(serde::Deserialize)]
+    struct TestQuery {
+        email: String,
+        name: String,
+        status: String,
+        id: Thing,
+    }
 
+    let sql = "SELECT email, name, status, id FROM subscriptions";
     let mut res = db
         .query(sql)
         .await
         .expect("Failed to fetch saved subscription.");
 
-    let saved: Option<FormData> = res.take(0).unwrap();
+    let saved: Option<TestQuery> = res.take(0).unwrap();
     match saved {
         Some(s) => {
             assert_eq!(s.email, "ursula_le_guin@gmail.com");
             assert_eq!(s.name, "le guin");
+            assert_eq!(s.status, "pending_confirmation");
+            // dbg!(s.id);
         }
         None => panic!("No subscription found."),
     }
 }
-// endregion: -- POST Form: 200 OK
+// endregion: -- POST Form: Subscribe persists the new subscriber
 
 // region: -- POST Form: 422 Unprocessable Entity
 #[rstest]
@@ -112,7 +140,7 @@ async fn subscribe_returns_a_200_when_fields_are_present_but_empty(
 
 // region: -- POST Form: Subscribe sends a confirmation email for valid data
 #[tokio::test]
-async fn subscribe_sends_a_confirmation_email_for_valid_data() {
+async fn subscribe_sends_a_confirmation_email_with_a_link() {
     // Arrange
     let app = spawn_app().await;
 
@@ -129,20 +157,8 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
 
     // Assert
     let email_request = &app.email_server.received_requests().await.unwrap()[0];
-    let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+    let confirmation_links = app.get_confirmation_links(email_request);
 
-    let get_link = |s: &str| {
-        let links: Vec<_> = linkify::LinkFinder::new()
-            .links(s)
-            .filter(|l| *l.kind() == linkify::LinkKind::Url)
-            .collect();
-        assert_eq!(links.len(), 1);
-        links[0].as_str().to_owned()
-    };
-
-    let html_link = get_link(body["HtmlBody"].as_str().unwrap());
-    let text_link = get_link(body["TextBody"].as_str().unwrap());
-
-    assert_eq!(html_link, text_link);
+    assert_eq!(confirmation_links.html, confirmation_links.plain_text);
 }
 // endregion: -- POST Form: Subscribe sends a confirmation email for valid data
