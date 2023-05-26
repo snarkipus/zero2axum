@@ -1,3 +1,16 @@
+<div id="top"></div>
+
+<h1 align="center">Zero To Axum: It's Surreal</h1>
+
+<div align="center">
+  <br />
+  <div align="center">
+    <a href="https://github.com/snarkipus/zero2axum">
+      <img src="zero2axum.png" alt="silly logo" width="360">
+    </a>
+  </div>
+</div>
+
 # Build Log & Changes
 
 ## Rust Resources
@@ -419,6 +432,8 @@ let thing_de: Thing = serde_json::from_str(&json)?;
 [`surrealdb::sql::serde::serialize_internal`](https://docs.rs/surrealdb/1.0.0-beta.9+20230402/surrealdb/sql/serde/fn.serialize_internal.html)
 
 So, I think the workaround will get you from `json` to `Thing` and back ... not sure how helpful that really is.
+
+On a related note ...
 
 >**adaptive-alex** — 05/18/2023 4:43 AM<br>
 > - If you want to set the ID upon creation just provide an ID in your struct.
