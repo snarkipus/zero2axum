@@ -104,5 +104,4 @@ async fn clicking_on_the_confirmation_link_confirms_a_subscriber() {
         None => panic!("No subscription found."),
     }
 }
-
 // endregion: -- Clicking on the Confirmation Link Confirms a Subscriber

@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use secrecy::ExposeSecret;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws, Wss},
     opt::auth::Root,
@@ -72,9 +72,7 @@ pub async fn create_db_client(
     )
   )]
 pub async fn migrate_db(configuration: Settings) -> Result<(), surrealdb::Error> {
-    let db_configuration = configuration.database.with_db();
-
-    SurrealdbMigrations::new(db_configuration)
+    SurrealdbMigrations::new(configuration.database.with_db())
         .up()
         .await
         .expect("Failed to run migrations.");

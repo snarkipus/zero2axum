@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::configuration::Settings;
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
@@ -9,20 +11,13 @@ use axum_macros::debug_handler;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
+use surrealdb::sql::{thing, Id, Thing};
+use tracing::{info, warn};
 
 #[derive(Deserialize, Debug)]
 pub struct FormData {
     pub email: String,
     pub name: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Subscription {
-    pub id: Option<uuid::Uuid>,
-    pub email: String,
-    pub name: String,
-    pub subscribed_at: String,
-    pub status: String,
 }
 
 pub fn parse_subscriber(Form(data): Form<FormData>) -> std::result::Result<NewSubscriber, String> {
@@ -63,10 +58,11 @@ fn generate_subscription_token() -> String {
 )]
 pub async fn handler_subscribe(
     State(configuration): State<Settings>,
-    State(email_client): State<EmailClient>,
+    State(email_client): State<Arc<EmailClient>>,
     State(base_url): State<ApplicationBaseUrl>,
     Form(data): Form<FormData>,
 ) -> Result<impl IntoResponse> {
+    info!("{:<8} - handler_subscribe", "HANDLER");
     let new_subscriber: NewSubscriber = match Form(data).0.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return Ok(StatusCode::BAD_REQUEST),
@@ -76,37 +72,117 @@ pub async fn handler_subscribe(
         Ok(id) => id,
         Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
     };
-    let subscription_token = generate_subscription_token();
-    if store_token(&configuration, &subscriber_id, &subscription_token).await.is_err() {
-        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-    };
 
-    if send_confirmation_email(&email_client, new_subscriber, &base_url.0, &subscription_token)
+    let subscription_token = generate_subscription_token();
+    if store_token(&configuration, &subscriber_id, &subscription_token)
         .await
         .is_err()
     {
         return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-    }
+    };
+
+    match send_confirmation_email(
+        &email_client,
+        new_subscriber,
+        &base_url.0,
+        &subscription_token,
+    )
+    .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!("Failed to send confirmation email: {:?}", e);
+            return Ok(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
     Ok(StatusCode::OK)
 }
 // endregion: -- Subscribe Handler
 
+// region: -- Insert Subscriber (SurrealDB Store)
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Subscription {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Thing>,
+    pub email: String,
+    pub name: String,
+    pub subscribed_at: String,
+    pub status: String,
+}
+
+#[tracing::instrument(
+    name = "Saving new subscriber details to SurrealDB",
+    skip(new_subscriber, configuration)
+)]
+pub async fn insert_subscriber(
+    configuration: &Settings,
+    new_subscriber: NewSubscriber,
+) -> std::result::Result<Thing, surrealdb::Error> {
+    let db = db::create_db_client(configuration.clone()).await?;
+
+    let sql = "CREATE subscriptions:uuid() CONTENT { email: $email, name: $name, subscribed_at: $subscribed_at, status: $status }";
+
+    let mut response = db
+        .query(sql)
+        .bind(("email", new_subscriber.email.as_ref()))
+        .bind(("name", new_subscriber.name.as_ref()))
+        .bind(("subscribed_at", chrono::Utc::now().to_rfc3339()))
+        .bind(("status", "pending_confirmation"))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute query: {e}");
+            e
+        })?;
+
+    let subscriber_id: Thing = response
+        .take(0)
+        .map(|s: Option<Subscription>| s.unwrap())
+        .map(|s: Subscription| s.id.unwrap())?;
+
+    Ok(subscriber_id)
+}
+// endregion: -- Insert Subscriber (SurrealDB Store)
+
 // region: -- Store Token (SurrealDB Store)
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SubscriptionToken {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Thing>,
+    pub subcription_token: String,
+}
+
 #[tracing::instrument(
     name = "Saving subscription token to SurrealDB",
     skip(configuration, subscription_token)
 )]
 pub async fn store_token(
     configuration: &Settings,
-    subscriber_id: &surrealdb::sql::Uuid,
+    subscriber_id: &Thing,
     subscription_token: &str,
 ) -> std::result::Result<(), surrealdb::Error> {
     let db = db::create_db_client(configuration.clone()).await?;
 
-    let sql = "INSERT INTO subscription_tokens (subscriber_id, subscription_token) VALUES ($subscriber_id, $subscription_token)";
-    let _ = db
+    // Create the subscription token record
+    let sql =
+        "CREATE subscription_tokens:uuid() CONTENT { subscription_token: $subscription_token }";
+    let _res = db
         .query(sql)
-        .bind(("subscriber_id", subscriber_id.as_ref()))
+        .bind(("subscription_token", subscription_token))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            e
+        })?;
+
+    // Associate the subscription token with the subscriber
+    let sql = "
+        LET $newtoken = SELECT id FROM subscription_tokens WHERE subscription_token = $subscription_token;
+        RELATE $newtoken->subscribes->$subscriber_id SET id = subscribes:uuid();    
+    ";
+    let _res = db
+        .query(sql)
+        .bind(("subscriber_id", subscriber_id))
         .bind(("subscription_token", subscription_token))
         .await
         .map_err(|e| {
@@ -146,33 +222,3 @@ pub async fn send_confirmation_email(
         .await
 }
 // endregion: -- Send Confirmation Email
-
-// region: -- Insert Subscriber (SurrealDB Store)
-#[tracing::instrument(
-    name = "Saving new subscriber details to SurrealDB",
-    skip(new_subscriber, configuration)
-)]
-pub async fn insert_subscriber(
-    configuration: &Settings,
-    new_subscriber: NewSubscriber,
-) -> std::result::Result<surrealdb::sql::Uuid, surrealdb::Error> {
-    let db = db::create_db_client(configuration.clone()).await?;
-
-    let sql = "INSERT INTO subscriptions (id, email, name, subscribed_at, status) VALUES ($id, $email, $name, $subscribed_at, $status)";
-    let subscriber_id = surrealdb::sql::Uuid::new_v4();
-    let _response = db
-        .query(sql)
-        .bind(("id", subscriber_id.as_ref()))
-        .bind(("email", new_subscriber.email.as_ref()))
-        .bind(("name", new_subscriber.name.as_ref()))
-        .bind(("subscribed_at", chrono::Utc::now().to_rfc3339()))
-        .bind(("status", "pending_confirmation"))
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to execute query: {e}");
-            e
-        })?;
-        // dbg!(&_response);
-    Ok(subscriber_id)
-}
-// endregion: -- Insert Subscriber (SurrealDB Store)

@@ -23,6 +23,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 // endregion: -- conditional tracing for tests
 
 // region: -- spawn_app
+#[derive(Clone, Debug)]
 pub struct ConfirmationLinks {
     pub html: reqwest::Url,
     pub plain_text: reqwest::Url,
@@ -55,7 +56,6 @@ impl TestApp {
                 .links(s)
                 .filter(|l| *l.kind() == linkify::LinkKind::Url)
                 .collect();
-
             assert_eq!(links.len(), 1);
             let raw_link = links[0].as_str().to_owned();
             let mut confirmation_link = reqwest::Url::parse(&raw_link).unwrap();

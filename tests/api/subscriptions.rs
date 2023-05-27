@@ -3,8 +3,7 @@ use rstest::rstest;
 use surrealdb::sql::Thing;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
-use zero2axum::db::{self, Id};
-use zero2axum::routes::Subscription;
+use zero2axum::db;
 
 // region: -- POST Form: 200 OK
 #[tokio::test]
@@ -46,10 +45,11 @@ async fn subscribe_persists_the_new_subscriber() {
     // Assert
     let db = match db::create_db_client(app.configuration.clone()).await {
         Ok(db) => db,
-        Err(e) => panic!("Failed to create database: {}", e),
+        Err(e) => panic!("Failed to create database client: {}", e),
     };
-    
-    #[derive(serde::Deserialize)]
+
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize, Debug)]
     struct TestQuery {
         email: String,
         name: String,
@@ -64,12 +64,13 @@ async fn subscribe_persists_the_new_subscriber() {
         .expect("Failed to fetch saved subscription.");
 
     let saved: Option<TestQuery> = res.take(0).unwrap();
+    
     match saved {
         Some(s) => {
             assert_eq!(s.email, "ursula_le_guin@gmail.com");
             assert_eq!(s.name, "le guin");
             assert_eq!(s.status, "pending_confirmation");
-            // dbg!(s.id);
+            // dbg!(s._id);
         }
         None => panic!("No subscription found."),
     }
