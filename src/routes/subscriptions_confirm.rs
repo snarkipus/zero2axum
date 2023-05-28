@@ -6,6 +6,7 @@ use axum::{
 use axum_macros::debug_handler;
 use surrealdb::sql::Thing;
 
+
 use crate::{configuration::Settings, db, error::Result};
 
 #[allow(dead_code)]
@@ -75,7 +76,7 @@ pub async fn confirm_subscriber(
 pub async fn get_subscriber_id_from_token(
     configuration: &Settings,
     subscription_token: &str,
-) -> std::result::Result<Option<String>, surrealdb::Error> {
+) -> std::result::Result<Thing, surrealdb::Error> {
     let db = db::create_db_client(configuration.clone()).await?;
 
     let sql = "SELECT subscriber_id FROM subscription_tokens WHERE subscription_token = $subscription_token";
@@ -87,6 +88,11 @@ pub async fn get_subscriber_id_from_token(
             tracing::error!("Failed to execute query: {:?}", e);
             e
         })?;
+
+    let subscriber_id: Thing = res
+        .take(0)
+        .map(|s: Option<Subscription>| s.unwrap())
+        .map(|s: Subscription| s.id.unwrap())?;
 
     Ok(res.take(0).unwrap())
 }

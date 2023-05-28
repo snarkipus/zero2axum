@@ -332,3 +332,136 @@ Let's say we have a group of people who want to get licenses. Each person can ha
     }
     registry "1" --> "*" person : registration
 ```
+
+### Scratch Code
+Here's some scratch code I threw together that kinda works ... 
+```rust
+async fn create_license() {
+    let db = create_db().await;
+
+    // create license number
+    let license_number: usize = 12345;
+
+    // create new person: Doc McStuffins
+    let sql = "CREATE person:uuid() CONTENT { name: $name }";
+    let mut res = db.query(sql).bind(("name", "McStuffins")).await.unwrap();
+
+    let _person_id = res
+        .take(0)
+        .map(|p: Option<PersonModel>| p.unwrap())
+        .map(|p: PersonModel| p.id.unwrap())
+        .map(|t: Thing| t.id)
+        .map(|id: Id| id.to_raw())
+        .unwrap();
+
+    // create new license
+    let sql = "CREATE registry:uuid() CONTENT { registration: $license_number }";
+
+    let _res = db
+        .query(sql)
+        .bind(("license_number", license_number))
+        .await
+        .unwrap();
+
+    // relate license to person
+    let sql = "
+        LET $foo = SELECT id FROM person WHERE name = $name;
+        LET $bar = SELECT id FROM registry WHERE registration = $license_number;
+        RELATE $bar->licenses->$foo SET id = licenses:uuid();
+    ";
+
+    let res = db
+        .query(sql)
+        .bind(("name", "McStuffins"))
+        .bind(("license_number", license_number))
+        .await
+        .unwrap();
+    dbg!(res);
+
+    // create another license number
+    let license_number: usize = 678910;
+
+    // create another ew license
+    let sql = "CREATE registry:uuid() CONTENT { registration: $license_number }";
+
+    let _res = db
+        .query(sql)
+        .bind(("license_number", license_number))
+        .await
+        .unwrap();
+
+    // relate another license to same person
+    let sql = "
+        LET $foo = SELECT id FROM person WHERE name = $name;
+        LET $bar = SELECT id FROM registry WHERE registration = $license_number;
+        RELATE $bar->licenses->$foo SET id = licenses:uuid();
+    ";
+
+    let res = db
+        .query(sql)
+        .bind(("name", "McStuffins"))
+        .bind(("license_number", license_number))
+        .await
+        .unwrap();
+    dbg!(res);
+
+    // Select id from person given a license number
+    let sql = "
+        LET $blah = SELECT id FROM registry WHERE registration = $license_number;
+        SELECT id, $blah->licenses->person from person;
+    ";
+    
+    let mut res = db
+        .query(sql)
+        .bind(("license_number", license_number))
+        .await
+        .unwrap();
+
+    dbg!(&res);
+    let _ = res.take::<Option<Thing>>(0).unwrap();
+    let person_id = res.take::<Vec<Thing>>(1).unwrap(); // <---BOOM!
+    dbg!(person_id);
+}
+```
+```bash
+[src/person.rs:191] &res = Response(
+    {
+        0: Ok(
+            [],
+        ),
+        1: Ok(
+            [
+                Object(
+                    Object(
+                        {
+                            "id": Thing(
+                                Thing {
+                                    tb: "person",
+                                    id: String(
+                                        "1d7bbcbd-4490-4f6d-8796-dd9eb8c8e6b7",
+                                    ),
+                                },
+                            ),
+                        },
+                    ),
+                ),
+            ],
+        ),
+    },
+)
+thread 'person::tests::create_license' panicked at 'called `Result::unwrap()` on an `Err` value: Api(FromValue { value: Array(Array([Object(Object({"id": Thing(Thing { tb: "person", id: String("1d7bbcbd-4490-4f6d-8796-dd9eb8c8e6b7") })}))])), error: "invalid value: map, expected map with a single key" })', src/person.rs:193:51
+```
+Sorta stuck ... the queries work via CLI, but I'll be damned if I can dig them out of the rust client response.
+```bash
+namespace/database> select * from registry;
+[{ id: registry:⟨28ce9adf-2054-4753-8e1e-367a1669d36e⟩, registration: '678910' }, { id: registry:⟨add44988-dc25-4c99-975a-4ec14f92f262⟩, registration: '12345' }]
+
+namespace/database> select * from person;
+[{ id: person:⟨7e84339e-e1e2-4758-8bdf-1c1f31bc092d⟩, name: 'McStuffins' }]
+
+namespace/database> LET $blah = SELECT id FROM registry WHERE registration = '678910';
+[]
+
+namespace/database> SELECT id, $blah->licenses->person from person;
+[{ id: person:⟨7e84339e-e1e2-4758-8bdf-1c1f31bc092d⟩ }]
+```
