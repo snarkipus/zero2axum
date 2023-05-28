@@ -64,7 +64,7 @@ async fn subscribe_persists_the_new_subscriber() {
         .expect("Failed to fetch saved subscription.");
 
     let saved: Option<TestQuery> = res.take(0).unwrap();
-    
+
     match saved {
         Some(s) => {
             assert_eq!(s.email, "ursula_le_guin@gmail.com");

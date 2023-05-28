@@ -6,7 +6,7 @@ use axum::{
 use axum_macros::debug_handler;
 use surrealdb::sql::Thing;
 
-
+use crate::routes::Subscription;
 use crate::{configuration::Settings, db, error::Result};
 
 #[allow(dead_code)]
@@ -28,7 +28,6 @@ pub async fn handler_confirm(
             Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
         };
     match id {
-        None => Ok(StatusCode::UNAUTHORIZED),
         Some(subscriber_id) => {
             if confirm_subscriber(&configuration, &subscriber_id)
                 .await
@@ -39,6 +38,7 @@ pub async fn handler_confirm(
 
             Ok(StatusCode::OK)
         }
+        None => Ok(StatusCode::UNAUTHORIZED),
     }
 }
 // endregion: -- Confirm Subscriber (HTTP Handler)
@@ -50,7 +50,7 @@ pub async fn handler_confirm(
 )]
 pub async fn confirm_subscriber(
     configuration: &Settings,
-    subscriber_id: &String,
+    subscriber_id: &Thing,
 ) -> std::result::Result<(), surrealdb::Error> {
     let db = db::create_db_client(configuration.clone()).await?;
 
@@ -76,10 +76,14 @@ pub async fn confirm_subscriber(
 pub async fn get_subscriber_id_from_token(
     configuration: &Settings,
     subscription_token: &str,
-) -> std::result::Result<Thing, surrealdb::Error> {
+) -> std::result::Result<Option<Thing>, surrealdb::Error> {
     let db = db::create_db_client(configuration.clone()).await?;
 
-    let sql = "SELECT subscriber_id FROM subscription_tokens WHERE subscription_token = $subscription_token";
+    let sql = "
+        let $token_id = SELECT id FROM subscription_tokens WHERE subscription_token = $subscription_token;
+        SELECT *, $token_id->subscribes->id from subscriptions;
+    ";
+
     let mut res = db
         .query(sql)
         .bind(("subscription_token", subscription_token))
@@ -90,10 +94,11 @@ pub async fn get_subscriber_id_from_token(
         })?;
 
     let subscriber_id: Thing = res
-        .take(0)
-        .map(|s: Option<Subscription>| s.unwrap())
-        .map(|s: Subscription| s.id.unwrap())?;
+        .take::<Vec<Subscription>>(1)
+        .map(|mut v: Vec<Subscription>| v.pop().unwrap())
+        .map(|s: Subscription| s.id.unwrap())
+        .unwrap();
 
-    Ok(res.take(0).unwrap())
+    Ok(Some(subscriber_id))
 }
 // endregion: -- Get Subscriber ID from Token (SurrealDB Retrieve)
