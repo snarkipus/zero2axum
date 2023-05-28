@@ -1,14 +1,11 @@
-use anyhow::Result;
 use axum::extract::FromRef;
-#[allow(unused_imports)]
 use axum::{
-    extract::Extension,
-    middleware,
-    response::{IntoResponse, Response},
     routing::{get, post, IntoMakeService},
-    Json, Router, Server,
+    Router, Server,
 };
+use color_eyre::Result;
 
+use color_eyre::eyre::Context;
 use hyper::{server::conn::AddrIncoming, Body};
 use std::{net::TcpListener, sync::Arc};
 use tower_http::trace::TraceLayer;
@@ -47,9 +44,11 @@ impl Application {
             "{}:{}",
             configuration.application.host, configuration.application.port
         );
-        let listener = TcpListener::bind(&address)?;
+        let listener = TcpListener::bind(&address).context("Failed to bind to address")?;
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, configuration, email_client).await?;
+        let server = run(listener, configuration, email_client)
+            .await
+            .context("Server failed to run")?;
 
         Ok(Self { port, server })
     }
@@ -58,13 +57,16 @@ impl Application {
         self.port
     }
 
-    pub async fn run_until_stopped(self) -> Result<(), hyper::Error> {
+    pub async fn run_until_stopped(self) -> Result<()> {
         let quit_sig = async {
             _ = tokio::signal::ctrl_c().await;
             warn!("Received Ctrl-C, shutting down gracefully...");
         };
 
-        self.server.with_graceful_shutdown(quit_sig).await
+        self.server
+            .with_graceful_shutdown(quit_sig)
+            .await
+            .map_err(|e| color_eyre::Report::msg(format!("Server failed to run: {e}")))
     }
 }
 // endregion: -- Application
@@ -115,7 +117,9 @@ pub async fn run(
         base_url: ApplicationBaseUrl(configuration.application.base_url.clone()),
         configuration: configuration.clone(),
         email_client: Arc::new(email_client),
-        database: Database::new(&configuration).await?,
+        database: Database::new(&configuration)
+            .await
+            .context("Application failed to create SurrealDB")?,
     };
 
     let app = Router::new()
@@ -138,7 +142,7 @@ pub async fn run(
 
     let server = Server::from_tcp(listener)
         .unwrap_or_else(|e| {
-            panic!("Failed to bind random port: {}", e);
+            panic!("Failed to bind random port: {e}");
         })
         .serve(app.into_make_service());
     Ok(server)

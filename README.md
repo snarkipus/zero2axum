@@ -358,12 +358,128 @@ Turns out someone else tried to do this ... just need the `FromRef` trait which 
 
 - **[Axum Docs: axum::extract::State Substates](https://docs.rs/axum/latest/axum/extract/struct.State.html#substates)**
 
-#### [Surreal Thing Notes](SurrealStuff)
+#### 7.7.5 Connecting the Dots
+
+##### 7.7.5.2
+> Let’s begin by taking care of that URL issue.
+It is currently hard-coded in
+
+> The domain and the protocol are going to vary according to the environment the application is running
+into: it will be http://127.0.0.1 for our tests, it should be a proper DNS record with HTTPS when our
+application is running in production.
+The easiest way to get it right is to pass the domain in as a configuration value.
+Let’s add a new field to ApplicationSettings: ...
+
+**TODO:** 
+- [ ] FIGURE THIS OUT FOR FLY.IO - CD will be broken until this is resolved
+```yaml
+#! spec.yaml
+# [...]
+services:
+  - name: zero2prod
+  # [...]
+  envs:
+    # We use DO's APP_URL to inject the dynamically
+    # provisioned base url as an environment variable
+    - key: APP_APPLICATION__BASE_URL
+      scope: RUN_TIME
+      value: ${APP_URL}
+      # [...]
+# [...]
+```
+> Remember to apply the changes to DigitalOcean every time we touch spec.yaml: grab your app
+identifier via doctl apps list --format ID and then run doctl apps update $APP_ID --spec
+spec.yaml.
+
+Well, Fly.io provides a very small amount of [environment variables](https://fly.io/docs/reference/runtime-environment/#environment-variables) to the runtime. 
+
+Now, according to the [docs](https://fly.io/docs/getting-started/working-with-fly-apps/) ... 
+> When you create a Fly App, it is automatically given a fly.dev sub-domain, based on the app's name.
+
+And the apps name is available via `FLY_APP_NAME` ... which one would intuit that the `base_url` should eventually resolve to `http://${FLY_APP_NAME}`.
+
+I'm pretty sure that the following code is where the change needs to happen (configuration.rs):
+```rust
+pub fn get_configuration() -> Result<Settings, config::ConfigError> {
+    let base_path = std::env::current_dir().expect("Failed to determine the current directory.");
+    let configuration_directory = base_path.join("configuration");
+
+    let environment: Environment = std::env::var("APP_ENVIRONMENT")
+        .unwrap_or_else(|_| "local".into())
+        .try_into()
+        .expect("Failed to parse APP_ENVIRONMENT.");
+    let environment_filename = format!("{}.yaml", environment.as_str());
+    let settings = config::Config::builder()
+        .add_source(config::File::from(
+            configuration_directory.join("base.yaml"),
+        ))
+        .add_source(config::File::from(
+            configuration_directory.join(environment_filename), // <-- "local" or "production" yaml
+        ))
+        .add_source(
+            config::Environment::with_prefix("APP") // <--  designed for Digital Ocean: APP_FOO__BAR
+                .prefix_separator("_")              //      Change: needs to use FLY_APP_NAME
+                .separator("__"),
+        )
+        .build()?;
+
+    settings.try_deserialize::<Settings>()
+}
+```
+
+## DETOUR: [Surreal Thing Notes](SurrealStuff)
 Pretty massive detour here to move away from pure `uuid` based ids, and to `Thing` which is unique to SurrealDB. Not a huge fan, but at least all the test are passing. Which brings us to ...
+
+---
 
 ### 7.8.2 Transactions
 Well, this would be yet another place where not using Postgres or sqlx makes things a little different. 
 
-SurrealDB does have the concept of [transaction](https://surrealdb.com/docs/surrealql/transactions), but any pooling will have to be done the hard way.
+SurrealDB does have a concept of [transaction](https://surrealdb.com/docs/surrealql/transactions), but any pooling will have to be done the hard way.
 
 I dunno ... maybe we can do something clever by making a general purpose DB adapter thing with some baked in smarts. Maybe add a simple transaction manager impl to the a DB object ...
+
+So, it's interesting working through this as a novice database guy ... so much emphasis in Postgres is placed on the connection. SurrealDB, using Websockets, doesn't have to deal with any of the pooling. It wouild seem that the sqlx! transaction manager grabs a connection from the pool and holds it open while it fills up a queue with pending transactions, then commits them once you pull the trigger. My naive implementation just queues up a bunch of surql strings (maybe even validated?) and spits them out as a transaction. I may add a method to easily just execute it. 
+```rust
+#[derive(Clone, Debug, Default)]
+pub struct QueryManager {
+    pub queries: Vec<String>,
+}
+
+impl QueryManager {
+    pub fn new() -> QueryManager {
+        QueryManager {
+            queries: Vec::new(),
+        }
+    }
+
+    pub fn add_query(&mut self, query: &str) {
+        self.queries.push(query.to_string());
+    }
+
+    pub fn generate_transaction(&self) -> Transaction {
+        let mut transaction = String::from("BEGIN TRANSACTION;\n");
+        for query in &self.queries {
+            transaction.push_str(query);
+            transaction.push_str(";\n");
+        }
+        transaction.push_str("COMMIT TRANSACTION;");
+        Transaction(transaction)
+    }
+}
+
+pub struct Transaction(pub String);
+
+impl AsRef<str> for Transaction {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl IntoQuery for Transaction {
+    fn into_query(self) -> std::result::Result<Vec<Statement>, surrealdb::Error> {
+        sql::parse(self.as_ref())?.into_query()
+    }
+}
+```
+

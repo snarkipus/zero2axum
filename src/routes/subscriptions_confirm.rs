@@ -9,7 +9,6 @@ use surrealdb::sql::Thing;
 use crate::error::Result;
 use crate::{db::Database, routes::Subscription, startup::AppState};
 
-#[allow(dead_code)]
 #[derive(serde::Deserialize)]
 pub struct Parameters {
     subscription_token: String,
