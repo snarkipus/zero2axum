@@ -465,3 +465,26 @@ namespace/database> LET $blah = SELECT id FROM registry WHERE registration = '67
 namespace/database> SELECT id, $blah->licenses->person from person;
 [{ id: person:⟨7e84339e-e1e2-4758-8bdf-1c1f31bc092d⟩ }]
 ```
+Well, _an_ answer is ... (not pretty) ...
+```rust
+// Select id from person given a license number
+let sql = "
+    LET $blah = SELECT id FROM registry WHERE registration = $license_number;
+    SELECT *, $blah->licenses->person from person;
+";
+
+let mut res = db
+    .query(sql)
+    .bind(("license_number", license_number))
+    .await
+    .unwrap();
+
+let person_id: Thing = res
+    .take::<Vec<PersonModel>>(1)
+    .map(|mut v: Vec<PersonModel>| v.pop())
+    .map(|p: Option<PersonModel>| p.unwrap())
+    .map(|p: PersonModel| p.id)
+    .map(|t: Option<Thing>| t.unwrap())
+    .unwrap();
+```
+For now, we'll just go with that until better docs come out ... doesn't look very 'production'ish

@@ -1,16 +1,16 @@
-use std::sync::Arc;
-
 use crate::configuration::Settings;
+use crate::db::Database;
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
+use crate::error::Result;
 use crate::startup::{AppState, ApplicationBaseUrl};
-use crate::{db, error::Result};
 use axum::extract::State;
 use axum::{http::StatusCode, response::IntoResponse, Form};
 use axum_macros::debug_handler;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use surrealdb::sql::Thing;
 use tracing::info;
 
@@ -48,7 +48,7 @@ fn generate_subscription_token() -> String {
 #[debug_handler(state = AppState)]
 #[tracing::instrument(
     name = "Adding a new subscriber.",
-    skip(data, configuration, email_client, base_url),
+    skip(data, configuration, email_client, base_url, database),
     fields(
         request_id = %uuid::Uuid::new_v4(),
         subscriber_email = %data.email,
@@ -60,6 +60,7 @@ pub async fn handler_subscribe(
     State(configuration): State<Settings>,
     State(email_client): State<Arc<EmailClient>>,
     State(base_url): State<ApplicationBaseUrl>,
+    State(database): State<Database>,
     Form(data): Form<FormData>,
 ) -> Result<impl IntoResponse> {
     info!("{:<8} - handler_subscribe", "HANDLER");
@@ -68,13 +69,13 @@ pub async fn handler_subscribe(
         Err(_) => return Ok(StatusCode::BAD_REQUEST),
     };
 
-    let subscriber_id = match insert_subscriber(&configuration, new_subscriber.clone()).await {
+    let subscriber_id = match insert_subscriber(new_subscriber.clone(), &database).await {
         Ok(id) => id,
         Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
     let subscription_token = generate_subscription_token();
-    if store_token(&configuration, &subscriber_id, &subscription_token)
+    if store_token(&subscriber_id, &subscription_token, &database)
         .await
         .is_err()
     {
@@ -113,13 +114,13 @@ pub struct Subscription {
 
 #[tracing::instrument(
     name = "Saving new subscriber details to SurrealDB",
-    skip(new_subscriber, configuration)
+    skip(new_subscriber, database)
 )]
 pub async fn insert_subscriber(
-    configuration: &Settings,
     new_subscriber: NewSubscriber,
+    database: &Database,
 ) -> std::result::Result<Thing, surrealdb::Error> {
-    let db = db::create_db_client(configuration.clone()).await?;
+    let db = database.get_connection();
 
     let sql = "CREATE subscriptions:uuid() CONTENT { email: $email, name: $name, subscribed_at: $subscribed_at, status: $status }";
 
@@ -154,14 +155,14 @@ pub struct SubscriptionToken {
 
 #[tracing::instrument(
     name = "Saving subscription token to SurrealDB",
-    skip(configuration, subscription_token)
+    skip(subscriber_id, subscription_token, database)
 )]
 pub async fn store_token(
-    configuration: &Settings,
     subscriber_id: &Thing,
     subscription_token: &str,
+    database: &Database,
 ) -> std::result::Result<(), surrealdb::Error> {
-    let db = db::create_db_client(configuration.clone()).await?;
+    let db = database.get_connection();
 
     // Create the subscription token record
     let sql =

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use axum::extract::FromRef;
 #[allow(unused_imports)]
 use axum::{
@@ -14,17 +15,21 @@ use tower_http::trace::TraceLayer;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::{configuration::Settings, email_client::EmailClient, routes, routes::handler_confirm};
+use crate::{
+    configuration::Settings, db::Database, email_client::EmailClient, routes,
+    routes::handler_confirm,
+};
 
 type ZServer = Server<AddrIncoming, IntoMakeService<Router<(), Body>>>;
 
+// region: -- Application
 pub struct Application {
     port: u16,
     server: ZServer,
 }
 
 impl Application {
-    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
+    pub async fn build(configuration: Settings) -> Result<Self> {
         let sender_email = configuration
             .email_client
             .sender()
@@ -62,12 +67,15 @@ impl Application {
         self.server.with_graceful_shutdown(quit_sig).await
     }
 }
+// endregion: -- Application
 
+// region: -- AppState
 #[derive(Clone)]
 pub struct AppState {
     pub configuration: Settings,
     pub email_client: Arc<EmailClient>,
     pub base_url: ApplicationBaseUrl,
+    pub database: Database,
 }
 
 impl FromRef<AppState> for Settings {
@@ -88,6 +96,13 @@ impl FromRef<AppState> for ApplicationBaseUrl {
     }
 }
 
+impl FromRef<AppState> for Database {
+    fn from_ref(state: &AppState) -> Database {
+        state.database.clone()
+    }
+}
+// endregion: -- AppState
+
 #[derive(Clone)]
 pub struct ApplicationBaseUrl(pub String);
 
@@ -95,11 +110,12 @@ pub async fn run(
     listener: TcpListener,
     configuration: Settings,
     email_client: EmailClient,
-) -> Result<ZServer, std::io::Error> {
+) -> Result<ZServer> {
     let state = AppState {
         base_url: ApplicationBaseUrl(configuration.application.base_url.clone()),
-        configuration,
+        configuration: configuration.clone(),
         email_client: Arc::new(email_client),
+        database: Database::new(&configuration).await?,
     };
 
     let app = Router::new()

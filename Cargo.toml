@@ -40,6 +40,7 @@ validator = "0.16.0"
 fake = "2.6.1"
 rand = { version = "0.8.5", features = ["std_rng"] }
 axum-macros = "0.3.7"
+anyhow = "1.0.71"
 
 [dependencies.reqwest]
 version = "0.11.16"

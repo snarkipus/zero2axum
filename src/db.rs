@@ -1,7 +1,5 @@
-use std::ops::Deref;
-
+use anyhow::Result;
 use secrecy::ExposeSecret;
-use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws, Wss},
     opt::auth::Root,
@@ -11,72 +9,65 @@ use surrealdb_migrations::SurrealdbMigrations;
 
 use crate::configuration::Settings;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Id(String);
+#[derive(Clone, Debug)]
+pub struct Database {
+    pub client: Surreal<Client>,
+}
 
-impl AsRef<str> for Id {
-    fn as_ref(&self) -> &str {
-        &self.0
+impl Database {
+    // region: -- SurrealDB Initialization
+    #[tracing::instrument(
+        name = "Creating new SurrealDB Client",
+        skip(configuration),
+        fields(
+            db = %configuration.database.database_name
+        )
+      )]
+    pub async fn new(configuration: &Settings) -> Result<Self> {
+        let connection_string = format!(
+            "{}:{}",
+            configuration.database.host, configuration.database.port
+        );
+
+        let client = match configuration.database.require_ssl {
+            true => Surreal::new::<Wss>(connection_string).await?,
+            false => Surreal::new::<Ws>(connection_string).await?,
+        };
+
+        client
+            .signin(Root {
+                username: &configuration.database.username,
+                password: configuration.database.password.expose_secret(),
+            })
+            .await?;
+
+        client
+            .use_ns("default")
+            .use_db(&configuration.database.database_name)
+            .await?;
+        Ok(Self { client })
     }
-}
+    // endregion: --- SurrealDB Initialization
 
-impl Deref for Id {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    // region: -- SurrealDB Migration
+    #[tracing::instrument(
+        name = "Performing SurrealDB Migrations",
+        skip(configuration),
+        fields(
+            db = %configuration.database.database_name
+        )
+      )]
+    pub async fn migrate(&self, configuration: &Settings) -> Result<()> {
+        SurrealdbMigrations::new(configuration.database.with_db())
+            .up()
+            .await?;
+        Ok(())
     }
+    // endregion: --- SurrealDB Migration
+
+    // region:: -- Get Connection
+    pub fn get_connection(&self) -> Surreal<Client> {
+        self.client.clone()
+    }
+    // region:: -- Get Connection
 }
-
-// region: -- SurrealDB: Initialize
-#[tracing::instrument(
-  name = "Creating new SurrealDB Client Connection",
-  skip(configuration),
-  fields(
-      db = %configuration.database.database_name
-  )
-)]
-pub async fn create_db_client(
-    configuration: Settings,
-) -> std::result::Result<Surreal<Client>, surrealdb::Error> {
-    let connection_string = format!(
-        "{}:{}",
-        configuration.database.host, configuration.database.port
-    );
-
-    let db = match configuration.database.require_ssl {
-        true => Surreal::new::<Wss>(connection_string).await?,
-        false => Surreal::new::<Ws>(connection_string).await?,
-    };
-
-    db.signin(Root {
-        username: &configuration.database.username,
-        password: configuration.database.password.expose_secret(),
-    })
-    .await?;
-
-    db.use_ns("default")
-        .use_db(&configuration.database.database_name)
-        .await?;
-
-    Ok(db)
-}
-// endregion: --- SurrealDB: Initialize
-
-// region: -- SurrealDB: Initialize & Migration
-#[tracing::instrument(
-    name = "Performing SurrealDB Migrations",
-    skip(configuration),
-    fields(
-        db = %configuration.database.database_name
-    )
-  )]
-pub async fn migrate_db(configuration: Settings) -> Result<(), surrealdb::Error> {
-    SurrealdbMigrations::new(configuration.database.with_db())
-        .up()
-        .await
-        .expect("Failed to run migrations.");
-
-    Ok(())
-}
-// endregion: --- SurrealDB: Initialize & Migration

@@ -3,7 +3,7 @@ use uuid::Uuid;
 use wiremock::MockServer;
 use zero2axum::{
     configuration::{get_configuration, Settings},
-    db::migrate_db,
+    db::Database,
     startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -32,6 +32,7 @@ pub struct ConfirmationLinks {
 pub struct TestApp {
     pub configuration: Settings,
     pub email_server: MockServer,
+    pub database: Database,
 }
 
 impl TestApp {
@@ -87,7 +88,12 @@ pub async fn spawn_app() -> TestApp {
         c
     };
 
-    migrate_db(configuration.clone())
+    let database = Database::new(&configuration)
+        .await
+        .expect("Failed to create to database.");
+
+    database
+        .migrate(&configuration)
         .await
         .expect("Failed to migrate database.");
 
@@ -102,6 +108,7 @@ pub async fn spawn_app() -> TestApp {
     TestApp {
         configuration,
         email_server,
+        database,
     }
 }
 // endregion: -- spawn_app

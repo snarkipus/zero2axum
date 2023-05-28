@@ -1,7 +1,6 @@
 use crate::helpers::spawn_app;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
-use zero2axum::db;
 
 // region: -- Confirmations w/o token rejected with 400 Bad Request
 #[tokio::test]
@@ -75,11 +74,7 @@ async fn clicking_on_the_confirmation_link_confirms_a_subscriber() {
         .error_for_status()
         .unwrap();
 
-    // Assert
-    let db = match db::create_db_client(app.configuration.clone()).await {
-        Ok(db) => db,
-        Err(e) => panic!("Failed to create database: {}", e),
-    };
+    let db = app.database.get_connection();
 
     let sql = "SELECT email, name, status FROM subscriptions";
     let mut res = db

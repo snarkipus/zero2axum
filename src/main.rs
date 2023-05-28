@@ -14,7 +14,9 @@ async fn main() -> color_eyre::Result<()> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let application = Application::build(configuration.clone()).await?;
+    let application = Application::build(configuration.clone())
+        .await
+        .expect("Application Failed to Start");
     info!(
         "Server listening on http://{}:{}",
         configuration.application.host, configuration.application.port

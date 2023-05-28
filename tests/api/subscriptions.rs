@@ -3,7 +3,6 @@ use rstest::rstest;
 use surrealdb::sql::Thing;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
-use zero2axum::db;
 
 // region: -- POST Form: 200 OK
 #[tokio::test]
@@ -43,10 +42,7 @@ async fn subscribe_persists_the_new_subscriber() {
     app.post_subscriptions(body.into()).await;
 
     // Assert
-    let db = match db::create_db_client(app.configuration.clone()).await {
-        Ok(db) => db,
-        Err(e) => panic!("Failed to create database client: {}", e),
-    };
+    let db = app.database.get_connection();
 
     #[allow(dead_code)]
     #[derive(serde::Deserialize, Debug)]
@@ -70,7 +66,6 @@ async fn subscribe_persists_the_new_subscriber() {
             assert_eq!(s.email, "ursula_le_guin@gmail.com");
             assert_eq!(s.name, "le guin");
             assert_eq!(s.status, "pending_confirmation");
-            // dbg!(s._id);
         }
         None => panic!("No subscription found."),
     }

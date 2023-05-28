@@ -359,3 +359,11 @@ Turns out someone else tried to do this ... just need the `FromRef` trait which 
 - **[Axum Docs: axum::extract::State Substates](https://docs.rs/axum/latest/axum/extract/struct.State.html#substates)**
 
 #### [Surreal Thing Notes](SurrealStuff)
+Pretty massive detour here to move away from pure `uuid` based ids, and to `Thing` which is unique to SurrealDB. Not a huge fan, but at least all the test are passing. Which brings us to ...
+
+### 7.8.2 Transactions
+Well, this would be yet another place where not using Postgres or sqlx makes things a little different. 
+
+SurrealDB does have the concept of [transaction](https://surrealdb.com/docs/surrealql/transactions), but any pooling will have to be done the hard way.
+
+I dunno ... maybe we can do something clever by making a general purpose DB adapter thing with some baked in smarts. Maybe add a simple transaction manager impl to the a DB object ...

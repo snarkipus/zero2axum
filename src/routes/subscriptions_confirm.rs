@@ -6,8 +6,8 @@ use axum::{
 use axum_macros::debug_handler;
 use surrealdb::sql::Thing;
 
-use crate::routes::Subscription;
-use crate::{configuration::Settings, db, error::Result};
+use crate::error::Result;
+use crate::{db::Database, routes::Subscription, startup::AppState};
 
 #[allow(dead_code)]
 #[derive(serde::Deserialize)]
@@ -16,23 +16,19 @@ pub struct Parameters {
 }
 
 // region: -- Confirm Subscriber (HTTP Handler)
-#[debug_handler]
-#[tracing::instrument(name = "Confirm a pending subscriber", skip(parameters, configuration))]
+#[debug_handler(state = AppState)]
+#[tracing::instrument(name = "Confirm a pending subscriber", skip(parameters, database))]
 pub async fn handler_confirm(
-    State(configuration): State<Settings>,
+    State(database): State<Database>,
     Query(parameters): Query<Parameters>,
 ) -> Result<impl IntoResponse> {
-    let id =
-        match get_subscriber_id_from_token(&configuration, &parameters.subscription_token).await {
-            Ok(id) => id,
-            Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
-        };
+    let id = match get_subscriber_id_from_token(&parameters.subscription_token, &database).await {
+        Ok(id) => id,
+        Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
+    };
     match id {
         Some(subscriber_id) => {
-            if confirm_subscriber(&configuration, &subscriber_id)
-                .await
-                .is_err()
-            {
+            if confirm_subscriber(&subscriber_id, &database).await.is_err() {
                 return Ok(StatusCode::INTERNAL_SERVER_ERROR);
             }
 
@@ -44,15 +40,12 @@ pub async fn handler_confirm(
 // endregion: -- Confirm Subscriber (HTTP Handler)
 
 // region: -- Confirm Subscriber (SurrealDB Update)
-#[tracing::instrument(
-    name = "Mark subscriber as confirmed",
-    skip(configuration, subscriber_id)
-)]
+#[tracing::instrument(name = "Mark subscriber as confirmed", skip(subscriber_id, database))]
 pub async fn confirm_subscriber(
-    configuration: &Settings,
     subscriber_id: &Thing,
+    database: &Database,
 ) -> std::result::Result<(), surrealdb::Error> {
-    let db = db::create_db_client(configuration.clone()).await?;
+    let db = database.get_connection();
 
     let sql = "UPDATE subscriptions SET status = 'confirmed' WHERE id = $subscriber_id";
 
@@ -71,13 +64,13 @@ pub async fn confirm_subscriber(
 // region: -- Get Subscriber ID from Token (SurrealDB Retrieve)
 #[tracing::instrument(
     name = "Retrieve a subscriber ID from a subscription token",
-    skip(configuration, subscription_token)
+    skip(subscription_token, database)
 )]
 pub async fn get_subscriber_id_from_token(
-    configuration: &Settings,
     subscription_token: &str,
+    database: &Database,
 ) -> std::result::Result<Option<Thing>, surrealdb::Error> {
-    let db = db::create_db_client(configuration.clone()).await?;
+    let db = database.get_connection();
 
     let sql = "
         let $token_id = SELECT id FROM subscription_tokens WHERE subscription_token = $subscription_token;
