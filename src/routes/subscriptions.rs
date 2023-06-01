@@ -1,17 +1,19 @@
-use crate::configuration::Settings;
-use crate::db::Database;
-use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
-use crate::email_client::EmailClient;
-use crate::error::Result;
-use crate::startup::{AppState, ApplicationBaseUrl};
-use axum::extract::State;
-use axum::{http::StatusCode, response::IntoResponse, Form};
+use crate::{
+    configuration::Settings,
+    db::{Database, QueryManager},
+    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    email_client::EmailClient,
+    error::Result,
+    startup::{AppState, ApplicationBaseUrl},
+};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Form};
 use axum_macros::debug_handler;
+use color_eyre::eyre::Context;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::sql::{self, Thing};
 use tracing::info;
 
 #[derive(Deserialize, Debug)]
@@ -36,6 +38,7 @@ impl TryFrom<FormData> for NewSubscriber {
     }
 }
 
+#[tracing::instrument(name = "Generating Subscription Token")]
 fn generate_subscription_token() -> String {
     let mut rng = thread_rng();
     std::iter::repeat_with(|| rng.sample(Alphanumeric))
@@ -64,21 +67,29 @@ pub async fn handler_subscribe(
     Form(data): Form<FormData>,
 ) -> Result<impl IntoResponse> {
     info!("{:<8} - handler_subscribe", "HANDLER");
+
+    let mut manager = QueryManager::new();
     let new_subscriber: NewSubscriber = match Form(data).0.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return Ok(StatusCode::BAD_REQUEST),
     };
 
-    let subscriber_id = match insert_subscriber(new_subscriber.clone(), &database).await {
+    let subscriber_id = match insert_subscriber(new_subscriber.clone(), &mut manager).await {
         Ok(id) => id,
         Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
     };
+    tracing::info!("Subscriber ID: {:?}", subscriber_id);
 
     let subscription_token = generate_subscription_token();
-    if store_token(&subscriber_id, &subscription_token, &database)
+
+    if store_token(&subscriber_id, &subscription_token, &mut manager)
         .await
         .is_err()
     {
+        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
+    };
+
+    if manager.execute(&database.get_connection()).await.is_err() {
         return Ok(StatusCode::INTERNAL_SERVER_ERROR);
     };
 
@@ -114,33 +125,27 @@ pub struct Subscription {
 
 #[tracing::instrument(
     name = "Saving new subscriber details to SurrealDB",
-    skip(new_subscriber, database)
+    skip(new_subscriber, manager)
 )]
 pub async fn insert_subscriber(
     new_subscriber: NewSubscriber,
-    database: &Database,
-) -> std::result::Result<Thing, surrealdb::Error> {
-    let db = database.get_connection();
+    manager: &mut QueryManager,
+) -> color_eyre::Result<Thing> {
+    let subscriber_uuid = sql::Uuid::new_v4().to_raw();
+    let subscriber_id = Thing::from(("subscriptions".into(), subscriber_uuid));
 
-    let sql = "CREATE subscriptions:uuid() CONTENT { email: $email, name: $name, subscribed_at: $subscribed_at, status: $status }";
+    let query = format!(
+        "CREATE {} CONTENT {{ email: '{}', name: '{}', subscribed_at: '{}', status: '{}' }}",
+        &subscriber_id,
+        new_subscriber.email.as_ref(),
+        new_subscriber.name.as_ref(),
+        chrono::Utc::now().to_rfc3339(),
+        "pending_confirmation"
+    );
 
-    let mut response = db
-        .query(sql)
-        .bind(("email", new_subscriber.email.as_ref()))
-        .bind(("name", new_subscriber.name.as_ref()))
-        .bind(("subscribed_at", chrono::Utc::now().to_rfc3339()))
-        .bind(("status", "pending_confirmation"))
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to execute query: {e}");
-            e
-        })?;
-
-    let subscriber_id: Thing = response
-        .take(0)
-        .map(|s: Option<Subscription>| s.unwrap())
-        .map(|s: Subscription| s.id.unwrap())?;
-
+    manager
+        .add_query(&query)
+        .context("Failed to add query to manager")?;
     Ok(subscriber_id)
 }
 // endregion: -- Insert Subscriber (SurrealDB Store)
@@ -155,41 +160,37 @@ pub struct SubscriptionToken {
 
 #[tracing::instrument(
     name = "Saving subscription token to SurrealDB",
-    skip(subscriber_id, subscription_token, database)
+    skip(subscriber_id, subscription_token, manager)
 )]
 pub async fn store_token(
     subscriber_id: &Thing,
     subscription_token: &str,
-    database: &Database,
-) -> std::result::Result<(), surrealdb::Error> {
-    let db = database.get_connection();
+    manager: &mut QueryManager,
+) -> color_eyre::Result<()> {
+    let subtoken_uuid = sql::Uuid::new_v4().to_raw();
+    let subtoken_id = Thing::from(("subscription_tokens".into(), subtoken_uuid));
 
-    // Create the subscription token record
-    let sql =
-        "CREATE subscription_tokens:uuid() CONTENT { subscription_token: $subscription_token }";
-    let _res = db
-        .query(sql)
-        .bind(("subscription_token", subscription_token))
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to execute query: {:?}", e);
-            e
-        })?;
+    let query = format!(
+        "CREATE {} CONTENT {{ subscription_token: '{}' }}",
+        subtoken_id, &subscription_token
+    );
+
+    manager
+        .add_query(&query)
+        .context("Failed to add sub token query")?;
 
     // Associate the subscription token with the subscriber
-    let sql = "
-        LET $newtoken = SELECT id FROM subscription_tokens WHERE subscription_token = $subscription_token;
-        RELATE $newtoken->subscribes->$subscriber_id SET id = subscribes:uuid();    
-    ";
-    let _res = db
-        .query(sql)
-        .bind(("subscriber_id", subscriber_id))
-        .bind(("subscription_token", subscription_token))
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to execute query: {:?}", e);
-            e
-        })?;
+    let query = format!(
+        "RELATE {}->subscribes->{} SET id = {}",
+        subtoken_id,
+        subscriber_id,
+        Thing::from(("subscribes".into(), sql::Uuid::new_v4().to_string()))
+    );
+
+    manager
+        .add_query(&query)
+        .context("Failed to add relate query")?;
+
     Ok(())
 }
 // endregion: -- Store Token (SurrealDB Store)

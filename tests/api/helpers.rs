@@ -97,7 +97,7 @@ pub async fn spawn_app() -> TestApp {
         .await
         .expect("Failed to migrate database.");
 
-    let application = Application::build(configuration.clone())
+    let application = Application::build(configuration.clone(), database.clone())
         .await
         .expect("Failed to build application.");
 

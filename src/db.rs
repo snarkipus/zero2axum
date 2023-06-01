@@ -5,16 +5,16 @@ use surrealdb::{
     opt::{auth::Root, IntoQuery},
     sql,
     sql::Statement,
-    Surreal,
+    Response, Surreal,
 };
 use surrealdb_migrations::SurrealdbMigrations;
 
 use crate::configuration::Settings;
 
+// region: -- Database
 #[derive(Clone, Debug)]
 pub struct Database {
     pub client: Surreal<Client>,
-    pub manager: QueryManager
 }
 
 impl Database {
@@ -54,7 +54,7 @@ impl Database {
             .use_db(&configuration.database.database_name)
             .await
             .context("Failed to get namespace & database")?;
-        Ok(Self { client, manager: QueryManager::new() })
+        Ok(Self { client })
     }
     // endregion: --- SurrealDB Initialization
 
@@ -83,6 +83,7 @@ impl Database {
     }
     // endregion:: -- Get Connection
 }
+// endregion: --- Database
 
 // region: -- Query Manager
 #[derive(Clone, Debug, Default)]
@@ -98,14 +99,21 @@ impl QueryManager {
     }
 
     #[tracing::instrument(
-        name = "Adding query to QueryManager",
-        skip(self, query),
+        name = "Adding to QueryManager",
+        skip(self),
         fields(
             query = %query
         )
     )]
     pub fn add_query(&mut self, query: &str) -> Result<()> {
-        let query = sql::parse(query).context("Failed to parse query")?;
+        let query = match sql::parse(query) {
+            Ok(query) => query,
+            Err(e) => {
+                tracing::error!(error = %e);
+                return Err(e.into());
+            }
+        };
+
         self.queries.push(query.to_string());
         Ok(())
     }
@@ -114,20 +122,21 @@ impl QueryManager {
         let mut transaction = String::from("BEGIN TRANSACTION;\n");
         for query in &self.queries {
             transaction.push_str(query);
-            transaction.push_str(";\n");
+            transaction.push('\n');
         }
         transaction.push_str("COMMIT TRANSACTION;");
         Transaction(transaction)
     }
 
     #[tracing::instrument(name = "Executing QueryManager", skip(self, db))]
-    pub async fn execute(&mut self, db: &Surreal<Client>) -> Result<()> {
+    pub async fn execute(&mut self, db: &Surreal<Client>) -> Result<Response> {
         let transaction = self.generate_transaction();
-        tracing::debug!(transaction = %transaction.0);
-        match db.query(transaction).await {
-            Ok(_) => {
+        tracing::info!(transaction = %transaction.0);
+        let response = db.query(transaction).await;
+        match response {
+            Ok(response) => {
                 self.queries.clear();
-                Ok(())
+                Ok(response)
             }
             Err(e) => Err(e.into()),
         }

@@ -22,7 +22,7 @@
 ## SurrealDB Resources
 - [SurrealDB - Rust Embedded Database - Quick Tutorial](https://www.youtube.com/watch?v=iOyvum0D3LM)
 - [Beyond Surreal? A closer look at NewSQL Relational Data](https://www.youtube.com/watch?v=LCAIkx1p1k0)
-- [Testing SurrealDB](https://dev.to/ndrean/testing-surrealdb-1kjl)
+- [Testing SurrealDB](https://dev.to/ndrean/testing-surrealdb-1kjl) (See section on Graph Queries)
 - [SurrealDB: Your Ultimate Guide to Smooth Installation and Configuration](https://travishorn.com/surrealdb-your-ultimate-guide-to-smooth-installation-and-configuration)
 - [Awesome Surreal](https://github.com/surrealdb/awesome-surreal)
 - [Concurrency Example](https://github.com/surrealdb/surrealdb/blob/main/lib/examples/concurrency/main.rs)
@@ -439,7 +439,7 @@ SurrealDB does have a concept of [transaction](https://surrealdb.com/docs/surrea
 
 I dunno ... maybe we can do something clever by making a general purpose DB adapter thing with some baked in smarts. Maybe add a simple transaction manager impl to the a DB object ...
 
-So, it's interesting working through this as a novice database guy ... so much emphasis in Postgres is placed on the connection. SurrealDB, using Websockets, doesn't have to deal with any of the pooling. It wouild seem that the sqlx! transaction manager grabs a connection from the pool and holds it open while it fills up a queue with pending transactions, then commits them once you pull the trigger. My naive implementation just queues up a bunch of surql strings (maybe even validated?) and spits them out as a transaction. I may add a method to easily just execute it. 
+So, it's interesting working through this as a novice database guy ... so much emphasis in Postgres is placed on the connection. SurrealDB, using Websockets, doesn't have to deal with any of the pooling. It wouild seem that the sqlx! transaction manager grabs a connection from the pool and holds it open while it fills up a queue with pending transactions, then commits them once you pull the trigger. My naive implementation just queues up a bunch of surql strings (maybe even validated?) and spits them out as a transaction. ~~I may add a method to easily just execute it.~~ After discussing with ChatGPT, changes were made and things were done. 
 ```rust
 #[derive(Clone, Debug, Default)]
 pub struct QueryManager {
@@ -453,8 +453,17 @@ impl QueryManager {
         }
     }
 
-    pub fn add_query(&mut self, query: &str) {
+    #[tracing::instrument(
+        name = "Adding query to QueryManager",
+        skip(self, query),
+        fields(
+            query = %query
+        )
+    )]
+    pub fn add_query(&mut self, query: &str) -> Result<()> {
+        let query = sql::parse(query).context("Failed to parse query")?;
         self.queries.push(query.to_string());
+        Ok(())
     }
 
     pub fn generate_transaction(&self) -> Transaction {
@@ -465,6 +474,19 @@ impl QueryManager {
         }
         transaction.push_str("COMMIT TRANSACTION;");
         Transaction(transaction)
+    }
+
+    #[tracing::instrument(name = "Executing QueryManager", skip(self, db))]
+    pub async fn execute(&mut self, db: &Surreal<Client>) -> Result<()> {
+        let transaction = self.generate_transaction();
+        tracing::debug!(transaction = %transaction.0);
+        match db.query(transaction).await {
+            Ok(_) => {
+                self.queries.clear();
+                Ok(())
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 }
 
@@ -477,9 +499,27 @@ impl AsRef<str> for Transaction {
 }
 
 impl IntoQuery for Transaction {
-    fn into_query(self) -> std::result::Result<Vec<Statement>, surrealdb::Error> {
+    fn into_query(self) -> Result<Vec<Statement>, surrealdb::Error> {
         sql::parse(self.as_ref())?.into_query()
     }
 }
 ```
+This worked on a toy repo, so it should work well enough for this. It just won't be nearly as fancy as a grown-up version.
+> Back to the code: how do we leverage transactions in sqlx?
+You don’t have to manually write a BEGIN statement: transactions are so central to the usage of relational
+databases that sqlx provides a dedicated API.
+By calling `begin` on our pool we acquire a connection from the pool and kick off a transaction:
 
+We're choosing to ignore getting connection from a pool since that's what cool kids do.
+> `begin`, if successful, returns a Transaction struct.
+A mutable reference to a Transaction implements sqlx’s Executor trait therefore it can be used to run
+queries. All queries run using a Transaction as executor become of the transaction.
+Let’s pass transaction down to insert_subscriber and store_token instead of pool:
+
+I'm lazy, so I just create the struct when we create the database which exposes an `execute` trait to murder all the transaction in its queue. Logic should still hold though, we can pass the struct down to our database functions since it's conveniently bundled up in our `AppState`. Errrmmm .... mutable state is a thing apparently.
+
+Gnarly ... `tokio::mutex` is a thing ... this is stupid hard.
+
+**Update**: After thinking on this a bit more, for now all of the transactions are bundled relative to a specific handler. I don't actually need the transaction manager queue to be mutable/shared across multiple handlers (that's crazy complicated and seems like an anti-pattern). I just need to create an instance of the transaction manager 'scoped' to the handler. This _should_ allow me to avoid cross thread stuff. I dunno - we'll see how it works. In non-threaded testing, it [works](https://github.com/snarkipus/surreal-thing/blob/55c385619f984d456f172abe57f1040c8ad91090/tests/queries.rs#L107-L137) as [designed](https://github.com/snarkipus/zero2axum/blob/5564b7dd48df01de4fcbf99ce5d9555e2fd66285/src/db.rs#L88-L149). Shocking, that approach worked. All tests pass - just the fly.io environment variable loose-end to chase down.
+
+Not gonna lie - this chapter almost did me in.

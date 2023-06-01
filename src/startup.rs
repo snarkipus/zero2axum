@@ -26,7 +26,8 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(configuration: Settings) -> Result<Self> {
+    // region: -- Application Builder
+    pub async fn build(configuration: Settings, database: Database) -> Result<Self> {
         let sender_email = configuration
             .email_client
             .sender()
@@ -46,12 +47,13 @@ impl Application {
         );
         let listener = TcpListener::bind(&address).context("Failed to bind to address")?;
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, configuration, email_client)
+        let server = run(listener, configuration, email_client, database)
             .await
             .context("Server failed to run")?;
 
         Ok(Self { port, server })
     }
+    // endregion: -- Application Builder
 
     pub fn port(&self) -> u16 {
         self.port
@@ -103,6 +105,7 @@ impl FromRef<AppState> for Database {
         state.database.clone()
     }
 }
+
 // endregion: -- AppState
 
 #[derive(Clone)]
@@ -112,14 +115,13 @@ pub async fn run(
     listener: TcpListener,
     configuration: Settings,
     email_client: EmailClient,
+    database: Database,
 ) -> Result<ZServer> {
     let state = AppState {
         base_url: ApplicationBaseUrl(configuration.application.base_url.clone()),
-        configuration: configuration.clone(),
+        configuration,
         email_client: Arc::new(email_client),
-        database: Database::new(&configuration)
-            .await
-            .context("Application failed to create SurrealDB")?,
+        database,
     };
 
     let app = Router::new()

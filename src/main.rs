@@ -1,6 +1,8 @@
+use color_eyre::eyre::Context;
 use tracing::info;
 use zero2axum::{
     configuration::get_configuration,
+    db::Database,
     startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -14,7 +16,11 @@ async fn main() -> color_eyre::Result<()> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let application = Application::build(configuration.clone())
+    let database = Database::new(&configuration)
+        .await
+        .context("Application failed to create SurrealDB")?;
+
+    let application = Application::build(configuration.clone(), database)
         .await
         .expect("Application Failed to Start");
     info!(
