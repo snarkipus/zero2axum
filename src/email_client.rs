@@ -27,6 +27,16 @@ impl EmailClient {
         }
     }
 
+    #[tracing::instrument(
+        name = "Sending email",
+        skip(recipient, subject, html_content, text_content),
+        fields(
+            %recipient,
+            %subject,
+            %html_content,
+            %text_content
+        )
+    )]
     pub async fn send_email(
         &self,
         recipient: SubscriberEmail,
