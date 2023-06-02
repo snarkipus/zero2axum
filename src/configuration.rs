@@ -81,6 +81,19 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .unwrap_or_else(|_| "local".into())
         .try_into()
         .expect("Failed to parse APP_ENVIRONMENT.");
+
+    
+    if environment == Environment::Production {
+        let mut stub = std::env::var("FLY_APP_NAME").expect("FLY_APP_NAME must be set");
+        stub.push_str(".fly.dev");
+        std::env::set_var("APP_APPLICATION__BASE_URL", stub);
+    };
+
+    if environment.as_str() == "production" {
+        let mut base_url = std::env::var("FLY_APP_NAME").expect("FLY_APP_NAME must be set");
+        base_url.push_str(".fly.dev");
+    }
+
     let environment_filename = format!("{}.yaml", environment.as_str());
     let settings = config::Config::builder()
         .add_source(config::File::from(
@@ -99,6 +112,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
     settings.try_deserialize::<Settings>()
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Environment {
     Local,
     Production,
