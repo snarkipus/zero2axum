@@ -1,5 +1,4 @@
 use reqwest::Client;
-#[allow(unused_imports)]
 use secrecy::{ExposeSecret, Secret};
 
 use crate::domain::SubscriberEmail;
@@ -9,16 +8,14 @@ pub struct EmailClient {
     http_client: Client,
     base_url: String,
     sender: SubscriberEmail,
-    // authorization_token: Secret<String>,/
-    authorization_token: String,
+    authorization_token: Secret<String>,
 }
 
 impl EmailClient {
     pub fn new(
         base_url: String,
         sender: SubscriberEmail,
-        // authorization_token: Secret<String>,
-        authorization_token: String,
+        authorization_token: Secret<String>,
         timeout: std::time::Duration,
     ) -> Self {
         let http_client = Client::builder().timeout(timeout).build().unwrap();
@@ -32,13 +29,12 @@ impl EmailClient {
 
     #[tracing::instrument(
         name = "Sending email",
-        skip(recipient, subject, html_content, text_content),
+        skip(self, recipient, subject, html_content, text_content),
         fields(
             %recipient,
             %subject,
             %html_content,
             %text_content
-            
         )
     )]
     pub async fn send_email(
@@ -62,8 +58,7 @@ impl EmailClient {
             .post(&url)
             .header(
                 "X-Postmark-Server-Token",
-                // self.authorization_token.expose_secret(),
-                self.authorization_token.clone(),
+                self.authorization_token.expose_secret(),
             )
             .json(&request_body)
             .send()
@@ -130,8 +125,7 @@ mod tests {
         EmailClient::new(
             base_url,
             email(),
-            //  Secret::new(Faker.fake::<String>()),
-            Faker.fake::<String>(),
+            Secret::new(Faker.fake::<String>()),
             std::time::Duration::from_millis(200),
         )
     }

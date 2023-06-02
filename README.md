@@ -371,7 +371,21 @@ The easiest way to get it right is to pass the domain in as a configuration valu
 Let’s add a new field to ApplicationSettings: ...
 
 **TODO:** 
-- [ ] FIGURE THIS OUT FOR FLY.IO - CD will be broken until this is resolved
+- [X] FIGURE THIS OUT FOR FLY.IO - CD will be broken until this is resolved
+
+- Set the production API key so that postmark will get the right header:
+  
+`flyctl secrets set APP_EMAIL_CLIENT__AUTHORIZATION_TOKEN=API-TOKEN-GOES-HERE`
+
+- Rigged the configuration code to 'fake' the right format:
+
+```rust
+if environment == Environment::Production {
+    let mut base_url = std::env::var("FLY_APP_NAME").expect("FLY_APP_NAME must be set");
+    base_url.push_str(".fly.dev");
+    std::env::set_var("APP_APPLICATION__BASE_URL", base_url);
+};
+```
 ```yaml
 #! spec.yaml
 # [...]
@@ -523,3 +537,5 @@ Gnarly ... `tokio::mutex` is a thing ... this is stupid hard.
 **Update**: After thinking on this a bit more, for now all of the transactions are bundled relative to a specific handler. I don't actually need the transaction manager queue to be mutable/shared across multiple handlers (that's crazy complicated and seems like an anti-pattern). I just need to create an instance of the transaction manager 'scoped' to the handler. This _should_ allow me to avoid cross thread stuff. I dunno - we'll see how it works. In non-threaded testing, it [works](https://github.com/snarkipus/surreal-thing/blob/55c385619f984d456f172abe57f1040c8ad91090/tests/queries.rs#L107-L137) as [designed](https://github.com/snarkipus/zero2axum/blob/5564b7dd48df01de4fcbf99ce5d9555e2fd66285/src/db.rs#L88-L149). Shocking, that approach worked. All tests pass - just the fly.io environment variable loose-end to chase down.
 
 Not gonna lie - this chapter almost did me in.
+
+
