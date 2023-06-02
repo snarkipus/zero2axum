@@ -1,4 +1,5 @@
 use reqwest::Client;
+#[allow(unused_imports)]
 use secrecy::{ExposeSecret, Secret};
 
 use crate::domain::SubscriberEmail;
@@ -8,14 +9,16 @@ pub struct EmailClient {
     http_client: Client,
     base_url: String,
     sender: SubscriberEmail,
-    authorization_token: Secret<String>,
+    // authorization_token: Secret<String>,/
+    authorization_token: String,
 }
 
 impl EmailClient {
     pub fn new(
         base_url: String,
         sender: SubscriberEmail,
-        authorization_token: Secret<String>,
+        // authorization_token: Secret<String>,
+        authorization_token: String,
         timeout: std::time::Duration,
     ) -> Self {
         let http_client = Client::builder().timeout(timeout).build().unwrap();
@@ -58,7 +61,8 @@ impl EmailClient {
             .post(&url)
             .header(
                 "X-Postmark-Server-Token",
-                self.authorization_token.expose_secret(),
+                // self.authorization_token.expose_secret(),
+                self.authorization_token.clone(),
             )
             .json(&request_body)
             .send()
@@ -87,6 +91,7 @@ mod tests {
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
     use fake::{Fake, Faker};
+    #[allow(unused_imports)]
     use secrecy::Secret;
     use wiremock::matchers::{any, header, header_exists, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
@@ -124,7 +129,8 @@ mod tests {
         EmailClient::new(
             base_url,
             email(),
-            Secret::new(Faker.fake::<String>()),
+            //  Secret::new(Faker.fake::<String>()),
+            Faker.fake::<String>(),
             std::time::Duration::from_millis(200),
         )
     }
