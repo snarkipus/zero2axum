@@ -32,12 +32,13 @@ impl EmailClient {
 
     #[tracing::instrument(
         name = "Sending email",
-        skip(self, recipient, subject, html_content, text_content),
+        skip(recipient, subject, html_content, text_content),
         fields(
             %recipient,
             %subject,
             %html_content,
             %text_content
+            
         )
     )]
     pub async fn send_email(
