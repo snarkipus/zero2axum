@@ -29,7 +29,7 @@ impl EmailClient {
 
     #[tracing::instrument(
         name = "Sending email",
-        skip(recipient, subject, html_content, text_content),
+        skip(self, recipient, subject, html_content, text_content),
         fields(
             %recipient,
             %subject,
