@@ -82,7 +82,6 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .try_into()
         .expect("Failed to parse APP_ENVIRONMENT.");
 
-    
     if environment == Environment::Production {
         let mut stub = std::env::var("FLY_APP_NAME").expect("FLY_APP_NAME must be set");
         stub.push_str(".fly.dev");
