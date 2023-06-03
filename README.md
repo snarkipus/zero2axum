@@ -3,6 +3,21 @@
 <h1 align="center">Zero To Axum: It's Surreal</h1>
 
 <div align="center">
+  <a href="https://github.com/snarkipus/zero2axum/actions/workflows/ci.yaml">
+    <img src="https://github.com/snarkipus/zero2axum/actions/workflows/ci.yaml/badge.svg" alt="Build Badge">
+  </a>
+  <a href="https://codecov.io/gh/snarkipus/zero2axum">
+    <img src="https://codecov.io/gh/snarkipus/zero2axum/branch/main/graph/badge.svg?token=JKBQN4JFIW" alt="Codecov Badge">
+  </a>
+  <a href="https://github.com/snarkipus/zero2axum/actions/workflows/audit.yml">
+    <img src="https://github.com/snarkipus/zero2axum/actions/workflows/audit.yml/badge.svg" alt="Security Audit Badge">
+  </a>
+  <a href="https://github.com/snarkipus/zero2axum/actions/workflows/fly.yaml">
+    <img src="https://github.com/snarkipus/zero2axum/actions/workflows/fly.yaml/badge.svg" alt="Fly Depoloyment Badge">
+  </a>
+</div>
+
+<div align="center">
   <br />
   <div align="center">
     <a href="https://github.com/snarkipus/zero2axum">
@@ -10,6 +25,20 @@
     </a>
   </div>
 </div>
+
+# Status
+
+- [x] Chapter 1: Getting Started 
+- [x] Chapter 2: Building an Email Newsletter ([v0.1.2](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.2))
+- [x] Chapter 3: Sign Up a New Subscriber ([v0.1.3](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.3))
+- [x] Chapter 4: Telemetry ([v0.1.4](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.4))
+- [x] Chapter 5: Going Live ([v0.1.5](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.5))
+- [x] Chapter 6: Reject Invalid Subscribers #1 ([v0.1.6](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.6))
+- [x] Chapter 7: Reject Invalid Subscribers #2 ([v0.1.7](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.7))
+- [ ] Chapter 8: Error Handling
+- [ ] Chapter 9: Naive Newsletter Delivery
+- [ ] Chapter 10: Securing our API
+- [ ] Chapter 11: Fault Tolerant Workflows
 
 # Build Log & Changes
 
@@ -71,8 +100,8 @@ default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> SELECT * FROM subscriptions;
 
 | Crate | Docs |
 | --- | --- |
-| Axum | [0.6.16](https://docs.rs/axum/0.6.16/axum/) |
-| Tokio | [1.27.0](https://docs.rs/tokio/1.27.0/tokio/) |
+| Axum | [0.6.18](https://docs.rs/axum/0.6.18/axum/) |
+| Tokio | [1.28.1](https://docs.rs/tokio/1.28.1/tokio/) |
 | tracing | [0.1.37](https://docs.rs/tracing/0.1.37/tracing/) |
 | color_eyre | [0.6.2](https://docs.rs/color-eyre/0.6.2/color_eyre/) |
 | rstest | [0.17.0](https://docs.rs/rstest/0.17.0/rstest/) |
@@ -538,4 +567,16 @@ Gnarly ... `tokio::mutex` is a thing ... this is stupid hard.
 
 Not gonna lie - this chapter almost did me in.
 
+Extra Credit:
+- [ ] TODO: What happens if a user tries to subscribe twice? Make sure that they receive two confirmation emails;
+- [ ] TODO: What happens if a user clicks on a confirmation link twice?
+- [ ] TODO: What happens if the subscription token is well-formatted but non-existent?
+- [ ] TODO: Add validation on the incoming token, we are currently passing the raw user input straight into a
+query (thanks sqlx for protecting us from SQL injections <3);
+- [ ] TODO :Use a proper templating solution for our emails (e.g. tera);
 
+## Chapter 8
+
+Well, somewhat stuck right out of the gate - turns out I'll have to be creative in getting SurrealDB to fail. Despite having `SCHEMAFULL` definitions, SurrealDB will accept all incoming transactions (if valid) which is a known [bug](https://github.com/surrealdb/surrealdb/issues/2060).
+
+NOTE: At some point, it might be worth revisiting implenting `cargo-chef` instead of using `--mount=type=cache` even if it's just to understand other alternatives to build artifact caching. See [post](https://www.reddit.com/r/rust/comments/13yafcl/comment/jmmay3h/?utm_source=share&utm_medium=web2x&context=3) changed my opinion on it
