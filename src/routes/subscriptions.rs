@@ -89,9 +89,20 @@ pub async fn handler_subscribe(
         return Ok(StatusCode::INTERNAL_SERVER_ERROR);
     };
 
-    if manager.execute(&database.get_connection()).await.is_err() {
-        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
+    let tx_rs = manager.execute(&database.get_connection()).await;
+
+    let tx_res = match tx_rs {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to execute transaction: {:?}", e);
+            return Ok(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     };
+
+    if let Err(e) = tx_res.check() {
+        tracing::error!("Failed to execute transaction: {:?}", e);
+        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     match send_confirmation_email(
         &email_client,
@@ -135,11 +146,10 @@ pub async fn insert_subscriber(
     let subscriber_id = Thing::from(("subscriptions".into(), subscriber_uuid));
 
     let query = format!(
-        "CREATE {} CONTENT {{ email: '{}', name: '{}', subscribed_at: '{}', status: '{}' }}",
+        "CREATE {} CONTENT {{ email: '{}', name: '{}', subscribed_at: time::now(), status: '{}' }}",
         &subscriber_id,
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
-        chrono::Utc::now().to_rfc3339(),
         "pending_confirmation"
     );
 

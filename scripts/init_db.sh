@@ -21,7 +21,7 @@ then
     --pull always \
     -p "${DB_PORT}":8000 \
     -d \
-    surrealdb/surrealdb:latest start \
+    surrealdb/surrealdb:nightly start \
       --log trace \
       --user "${DB_USER}" \
       --pass "${DB_PASSWORD}" \

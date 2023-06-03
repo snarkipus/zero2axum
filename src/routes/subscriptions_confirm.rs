@@ -7,7 +7,7 @@ use axum_macros::debug_handler;
 use surrealdb::sql::Thing;
 
 use crate::error::Result;
-use crate::{db::Database, routes::Subscription, startup::AppState};
+use crate::{db::Database, startup::AppState};
 
 #[derive(serde::Deserialize)]
 pub struct Parameters {
@@ -76,7 +76,7 @@ pub async fn get_subscriber_id_from_token(
         SELECT *, $token_id->subscribes->id from subscriptions;
     ";
 
-    let mut res = db
+    let res = db
         .query(sql)
         .bind(("subscription_token", subscription_token))
         .await
@@ -85,12 +85,8 @@ pub async fn get_subscriber_id_from_token(
             e
         })?;
 
-    let subscriber_id: Thing = res
-        .take::<Vec<Subscription>>(1)
-        .map(|mut v: Vec<Subscription>| v.pop().unwrap())
-        .map(|s: Subscription| s.id.unwrap())
-        .unwrap();
+    let subscriber_id: Option<Thing> = res.check()?.take((1, "id"))?;
 
-    Ok(Some(subscriber_id))
+    Ok(subscriber_id)
 }
 // endregion: -- Get Subscriber ID from Token (SurrealDB Retrieve)
