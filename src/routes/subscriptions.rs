@@ -139,10 +139,10 @@ pub struct Subscription {
     pub status: String,
 }
 
-// #[tracing::instrument(
-//     name = "Saving new subscriber details to SurrealDB",
-//     skip(new_subscriber, client)
-// )]
+#[tracing::instrument(
+    name = "Saving new subscriber details to SurrealDB",
+    skip(new_subscriber, client)
+)]
 pub async fn insert_subscriber(
     new_subscriber: NewSubscriber,
     client: &Surreal<Client>,
