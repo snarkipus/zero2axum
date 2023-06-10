@@ -13,7 +13,11 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use surrealdb::{sql::{self, Thing}, engine::remote::ws::Client, Surreal};
+use surrealdb::{
+    engine::remote::ws::Client,
+    sql::{self, Thing},
+    Surreal,
+};
 use tracing::info;
 
 #[derive(Deserialize, Debug)]
@@ -135,10 +139,10 @@ pub struct Subscription {
     pub status: String,
 }
 
-#[tracing::instrument(
-    name = "Saving new subscriber details to SurrealDB",
-    skip(new_subscriber, client)
-)]
+// #[tracing::instrument(
+//     name = "Saving new subscriber details to SurrealDB",
+//     skip(new_subscriber, client)
+// )]
 pub async fn insert_subscriber(
     new_subscriber: NewSubscriber,
     client: &Surreal<Client>,
@@ -154,7 +158,7 @@ pub async fn insert_subscriber(
         "pending_confirmation"
     );
 
-    client.query(query).await.context("Failed to insert subscriber");
+    client.query(query).await?.check()?;
     Ok(subscriber_id)
 }
 // endregion: -- Insert Subscriber (SurrealDB Store)
@@ -184,8 +188,11 @@ pub async fn store_token(
         subtoken_id, &subscription_token
     );
 
-    client.query(&query).await.context("Failed to add sub token query")?;
-    
+    client
+        .query(&query)
+        .await
+        .context("Failed to add sub token query")?;
+
     // Associate the subscription token with the subscriber
     let query = format!(
         "RELATE {}->subscribes->{} SET id = {}",
@@ -194,8 +201,10 @@ pub async fn store_token(
         Thing::from(("subscribes".into(), sql::Uuid::new_v4().to_string()))
     );
 
-
-    client.query(&query).await.context("Failed to add relate query")?;
+    client
+        .query(&query)
+        .await
+        .context("Failed to add relate query")?;
 
     Ok(())
 }

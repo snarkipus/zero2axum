@@ -2,8 +2,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use thiserror::Error;
 use serde::Serialize;
+use thiserror::Error;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
