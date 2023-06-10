@@ -574,9 +574,205 @@ Extra Credit:
 - [ ] TODO: Add validation on the incoming token, we are currently passing the raw user input straight into a
 query (thanks sqlx for protecting us from SQL injections <3);
 - [ ] TODO :Use a proper templating solution for our emails (e.g. tera);
-
+- [ ] TODO: At some point, it might be worth revisiting implenting `cargo-chef` instead of using `--mount=type=cache`, even if it's just to understand other alternatives to build artifact caching. 
+- See [post](https://www.reddit.com/r/rust/comments/13yafcl/comment/jmmay3h/?utm_source=share&utm_medium=web2x&context=3)
 ## Chapter 8
+
+**Error Location vs Purpose**
+| | Internal | At the edge |
+|---|---|---|
+| **Control Flow** | Types, methods, fields | Status codes |
+| **Reporting** | Logs/traces | Response body |
+
+### 8.2 Operator Errors
 
 Well, somewhat stuck right out of the gate - turns out I'll have to be creative in getting SurrealDB to fail. Despite having `SCHEMAFULL` definitions, SurrealDB will accept all incoming transactions (if valid) which is a known [bug](https://github.com/surrealdb/surrealdb/issues/2060).
 
-NOTE: At some point, it might be worth revisiting implenting `cargo-chef` instead of using `--mount=type=cache` even if it's just to understand other alternatives to build artifact caching. See [post](https://www.reddit.com/r/rust/comments/13yafcl/comment/jmmay3h/?utm_source=share&utm_medium=web2x&context=3) changed my opinion on it
+So, we'll just add which should fail since the token is a string:
+```sql
+DEFINE FIELD subscription_token ON subscription_tokens TYPE number ASSERT $value != NONE AND is::numeric($value);
+```
+
+```log
+ERROR: test/27878 on Zeus: [ADDING A NEW SUBSCRIBER. - EVENT] Failed to execute transaction: Api(Query("The query was not executed due to a failed transaction")) (db_name=4e0426f4-3343-4c90-8083-70fc9bf6fddd,file=src/routes/subscriptions.rs,line=103,method=POST,request_id=cb2fa959-9b15-4e04-8b28-a54c26a16d90,subscriber_email=ursula_le_guin@gmail.com,subscriber_name="le guin",target=zero2axum::routes::subscriptions,uri=/subscribe,uuid=5b70a28f-0fcb-46f6-ba1a-582521be32b0)
+```
+
+```log
+ERROR: test/27878 on Zeus: [REQUEST - EVENT] response failed (classification="Status code: 500 Internal Server Error",latency="16 ms",line=137,method=POST,target=tower_http::trace::on_failure,uri=/subscribe,uuid=5b70a28f-0fcb-46f6-ba1a-582521be32b0)
+    file: /home/snarkipus/.cargo/registry/src/github.com-1ecc6299db9ec823/tower-http-0.4.0/src/trace/on_failure.rs
+```
+
+In this case, I had already created a `TraceLayer` in the axum router definition:
+```rust
+        [...]
+        .layer(
+            TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
+                let uuid = Uuid::new_v4();
+                tracing::info_span!(
+                    "request",
+                    uuid = %uuid,
+                    method = %request.method(),
+                    uri = %request.uri(),
+                )
+            }),
+        )
+        [...]
+```
+
+#### Axum Error Handling
+This section will be unique to Axum since its approach is somewhat different from Actix. In the case of Axum,  There's a pretty good preview of what this could look like [here](https://github.com/jeremychone-channel/rust-axum-course/blob/main/src/error.rs).
+
+- Axum References:
+  - [Error Handling](https://docs.rs/axum/latest/axum/error_handling/index.html)
+  - [IntoResponse (trait)](https://docs.rs/axum/latest/axum/response/trait.IntoResponse.html)
+  - [map_response()](https://docs.rs/axum/latest/axum/middleware/fn.map_response.html)
+  - [HandleError (struct)](https://docs.rs/axum/latest/axum/error_handling/struct.HandleError.html)
+  - [HandleErrorLayer (struct)](https://docs.rs/axum/latest/axum/error_handling/struct.HandleErrorLayer.html)
+
+**Options:**
+- Implement `IntoResponse` for enumerated error types (similar to how the book does it) and use the `map_response()` middleware
+
+---
+
+#### `sqlx` Anatomy Detour
+So, it turns out that the naive `QueryManager` is perhaps _too_ naive. It doesn't actually do what it's supposed to, namely send queries belonging to a `transaction` to the database as they arrive and then use the `commit` or `cancel` directives to handle the `transaction`.
+
+So, I attempted to somewhat understand how `sqlx` does it under the hood and it turns out it's pretty complicated (at least for me). Being "Database Agnostic" translates into a giant pile of traits and types which have to be implemented for a specific driver version (i.e. PostgreSQL). While I briefly (very briefly) toyed with the idea of attempting a SurrealDB derivation, it was quickly apparent that's a hard-mode option better suited to savvy devs.
+
+Some relavent notes to help me fix the naive API for the `QueryManager` ... I found the rat's nest of trait methods to be an interesting exercise.
+
+* **`sqlx::query!("....")` Cheatsheet**:
+
+| **Number of Rows** | **Method to Call\*** |	**Returns** |	**Notes** |
+| --- | --- | --- | --- |
+| None† |	`.execute(...).await`	| `sqlx::Result<DB::QueryResult>`	| For INSERT/UPDATE/DELETE without RETURNING.
+| Zero or One	| `.fetch_optional(...).await` |	`sqlx::Result<Option<{adhoc struct}>>` | Extra rows are ignored. |
+| Exactly One	| `.fetch_one(...).await` |	`sqlx::Result<{adhoc struct}>` |	Errors if no rows were returned. Extra rows are ignored. Aggregate queries, use this. |
+| At Least One	| `.fetch(...)` |	`impl Stream<Item = sqlx::Result<{adhoc struct}>>` |	Call `.try_next().await` to get each row result. |
+| Multiple |	`.fetch_all(...)` |	`sqlx::Result<Vec<{adhoc struct}>>` | |	
+
+\* All methods accept one of `&mut {connection type}`, `&mut Transaction` or `&Pool`.
+
+† Only callable if the query returns no columns; otherwise it’s assumed the query may return at least one row.
+
+So, like it or not, the `Query` method ([docs](https://docs.rs/surrealdb/1.0.0-beta.9+20230402/surrealdb/method/struct.Query.html)) handles all of that. There's just not a fancy way to manage transactions per se.
+
+
+* **`SQLx TransactionManager`**
+```rust
+pub trait TransactionManager {
+    type Database: Database;
+
+    /// Begin a new transaction or establish a savepoint within the active transaction.
+    fn begin(
+        conn: &mut <Self::Database as Database>::Connection,
+    ) -> BoxFuture<'_, Result<(), Error>>;
+
+    /// Commit the active transaction or release the most recent savepoint.
+    fn commit(
+        conn: &mut <Self::Database as Database>::Connection,
+    ) -> BoxFuture<'_, Result<(), Error>>;
+
+    /// Abort the active transaction or restore from the most recent savepoint.
+    fn rollback(
+        conn: &mut <Self::Database as Database>::Connection,
+    ) -> BoxFuture<'_, Result<(), Error>>;
+
+    /// Starts to abort the active transaction or restore from the most recent snapshot.
+    fn start_rollback(conn: &mut <Self::Database as Database>::Connection);
+}
+```
+
+* `SQLx Transaction`
+```rust
+pub struct Transaction<'c, DB>
+where
+    DB: Database,
+{
+    connection: MaybePoolConnection<'c, DB>,
+    open: bool,
+}
+
+impl<'c, DB> Transaction<'c, DB>
+where
+    DB: Database,
+{
+    #[doc(hidden)]
+    pub fn begin(
+        conn: impl Into<MaybePoolConnection<'c, DB>>,
+    ) -> BoxFuture<'c, Result<Self, Error>> {
+        let mut conn = conn.into();
+
+        Box::pin(async move {
+            DB::TransactionManager::begin(&mut conn).await?;
+
+            Ok(Self {
+                connection: conn,
+                open: true,
+            })
+        })
+    }
+
+    /// Commits this transaction or savepoint.
+    pub async fn commit(mut self) -> Result<(), Error> {
+        DB::TransactionManager::commit(&mut self.connection).await?;
+        self.open = false;
+
+        Ok(())
+    }
+
+    /// Aborts this transaction or savepoint.
+    pub async fn rollback(mut self) -> Result<(), Error> {
+        DB::TransactionManager::rollback(&mut self.connection).await?;
+        self.open = false;
+
+        Ok(())
+    }
+}
+
+[...]
+
+impl<'c, DB> Drop for Transaction<'c, DB>
+where
+    DB: Database,
+{
+    fn drop(&mut self) {
+        if self.open {
+            // starts a rollback operation
+
+            // what this does depends on the database but generally this means we queue a rollback
+            // operation that will happen on the next asynchronous invocation of the underlying
+            // connection (including if the connection is returned to a pool)
+
+            DB::TransactionManager::start_rollback(&mut self.connection);
+        }
+    }
+}
+```
+
+That should give us enough information to get started ... for this application, the general flow should look something like:
+
+```mermaid
+flowchart LR
+  id1[["route.handler(...)"]]
+  id2(["transaction.begin(...)"])
+    subgraph ide1 ["Insert Subscriber"]
+      direction TB
+      id3[["insert(...)"]]
+      id4(["db.query(...)"])
+      id3 --> id4
+    end
+    subgraph ide2 ["Store Token"]
+      direction TB
+      id5[["insert(...)"]]
+      id6(["db.query(...)"])
+      id5 --> id6
+    end
+  id7(["transaction.commit(...)"])
+
+  id1 --> id2
+  id2 --> ide1
+  ide1 --> ide2
+  ide2 --> id7
+```
+Unfortunately, the PostgreSQL implementation relies heavily on the viper's nest of traits, so I'm just going to naively flatten it into a simple struct with some basic `impl` methods somewhat derived from the PostgreSQL solution.

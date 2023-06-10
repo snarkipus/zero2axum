@@ -158,3 +158,22 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
     assert_eq!(confirmation_links.html, confirmation_links.plain_text);
 }
 // endregion: -- POST Form: Subscribe sends a confirmation email for valid data
+
+// region: -- Subscribe Fails if there is a Fatal Database Error
+#[tokio::test]
+async fn subscribe_fails_if_there_is_a_fatal_database_error() {
+    // Arrange
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    // Force a database error
+    let sql = "DEFINE FIELD subscription_token ON subscription_tokens TYPE number ASSERT $value != NONE AND is::numeric($value);";
+    let db = app.database.get_connection();
+    db.query(sql).await.expect("Failed to update a table.");
+
+    // Act
+    let response = app.post_subscriptions(body.into()).await;
+
+    // Assert
+    assert_eq!(response.status().as_u16(), 500);
+}

@@ -1,15 +1,14 @@
 use color_eyre::{eyre::Context, Result};
+use futures_core::future::BoxFuture;
 use secrecy::ExposeSecret;
 use surrealdb::{
     engine::remote::ws::{Client, Ws, Wss},
-    opt::{auth::Root, IntoQuery},
-    sql,
-    sql::Statement,
+    opt::auth::Root,
     Response, Surreal,
 };
 use surrealdb_migrations::SurrealdbMigrations;
 
-use crate::configuration::Settings;
+use crate::{configuration::Settings, error::Error};
 
 // region: -- Database
 #[derive(Clone, Debug)]
@@ -85,74 +84,50 @@ impl Database {
 }
 // endregion: --- Database
 
-// region: -- Query Manager
-#[derive(Clone, Debug, Default)]
-pub struct QueryManager {
-    pub queries: Vec<String>,
+// region: -- Transaction
+pub struct Transaction<'c> {
+    pub conn: &'c Surreal<Client>,
+    pub open: bool,
 }
 
-impl QueryManager {
-    pub fn new() -> QueryManager {
-        QueryManager {
-            queries: Vec::new(),
-        }
+impl<'c> Transaction<'c> {
+    pub fn begin(conn: &'c Surreal<Client>) -> BoxFuture<'c, Result<Self, Error>> {
+        Box::pin(async move {
+            let sql = "BEGIN TRANSACTION;".to_string();
+            let response = conn.query(sql).await?;
+            response.check()?;
+
+            Ok(Self { conn, open: true })
+        })
     }
 
-    #[tracing::instrument(
-        name = "Adding to QueryManager",
-        skip(self),
-        fields(
-            query = %query
-        )
-    )]
-    pub fn add_query(&mut self, query: &str) -> Result<()> {
-        let query = match sql::parse(query) {
-            Ok(query) => query,
-            Err(e) => {
-                tracing::error!(error = %e);
-                return Err(e.into());
-            }
-        };
-
-        self.queries.push(query.to_string());
-        Ok(())
+    pub async fn commit(mut self) -> std::result::Result<Response, Error> {
+        let sql = "COMMIT TRANSACTION;";
+        let response = self.conn.query(sql).await?.check()?;
+        self.open = false;
+        Ok(response)
     }
 
-    pub fn generate_transaction(&self) -> Transaction {
-        let mut transaction = String::from("BEGIN TRANSACTION;\n");
-        for query in &self.queries {
-            transaction.push_str(query);
-            transaction.push('\n');
-        }
-        transaction.push_str("COMMIT TRANSACTION;");
-        Transaction(transaction)
+    pub async fn rollback(mut self) -> BoxFuture<'c, Result<(), Error>> {
+        Box::pin(async move {
+            let sql = "CANCEL TRANSACTION;";
+            let response = self.conn.query(sql).await?;
+            response.check()?;
+            self.open = false;
+            Ok(())
+        })
     }
+}
 
-    #[tracing::instrument(name = "Executing QueryManager", skip(self, db))]
-    pub async fn execute(&mut self, db: &Surreal<Client>) -> Result<Response> {
-        let transaction = self.generate_transaction();
-        tracing::info!(transaction = %transaction.0);
-        let response = db.query(transaction).await;
-        match response {
-            Ok(response) => {
-                self.queries.clear();
-                Ok(response)
-            }
-            Err(e) => Err(e.into()),
+impl<'c> Drop for Transaction<'c> {
+    fn drop(&mut self) {
+        if self.open {
+            let conn = self.conn.clone();
+            tokio::spawn(async move {
+                let sql = "CANCEL TRANSACTION;";
+                let _ = conn.query(sql).await;
+            });
         }
     }
 }
-
-pub struct Transaction(pub String);
-
-impl AsRef<str> for Transaction {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl IntoQuery for Transaction {
-    fn into_query(self) -> Result<Vec<Statement>, surrealdb::Error> {
-        sql::parse(self.as_ref())?.into_query()
-    }
-}
+// endregion: -- Transaction

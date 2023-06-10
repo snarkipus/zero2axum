@@ -2,32 +2,32 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-
-use ::serde::Serialize;
-use tracing::error;
+use thiserror::Error;
+use serde::Serialize;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Clone, Debug, Serialize, strum_macros::AsRefStr)]
+#[derive(Clone, Debug, Serialize, strum_macros::AsRefStr, Error)]
 #[serde(tag = "type", content = "data")]
 pub enum Error {
     // -- DB Errors
+    #[error("database error")]
     SurrealDBError,
 }
 
-// region: --- Error Display Impl
-impl std::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> core::result::Result<(), std::fmt::Error> {
-        write!(fmt, "{:?}", self)
-    }
-}
+// // region: --- Error Display Impl
+// impl std::fmt::Display for Error {
+//     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> core::result::Result<(), std::fmt::Error> {
+//         write!(fmt, "{:?}", self)
+//     }
+// }
 
-impl std::error::Error for Error {}
+// impl std::error::Error for Error {}
 // endregion: --- Error Display Impl
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        error!("->> {:<8} - {self:?}", "INTO_RES");
+        tracing::error!("->> {:<8} - {self:?}", "INTO_RES");
 
         // Axum error response
         let mut response = StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -36,6 +36,13 @@ impl IntoResponse for Error {
         response.extensions_mut().insert(self);
 
         response
+    }
+}
+
+impl From<surrealdb::Error> for Error {
+    fn from(error: surrealdb::Error) -> Self {
+        eprintln!("{error}");
+        Self::SurrealDBError
     }
 }
 
