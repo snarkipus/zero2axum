@@ -3,10 +3,15 @@ use crate::{
     db::{Database, Transaction},
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailClient,
-    error::Result,
+    error::{StoreTokenError, SubscribeError},
     startup::{AppState, ApplicationBaseUrl},
 };
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Form};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Form,
+};
 use axum_macros::debug_handler;
 use color_eyre::eyre::Context;
 use rand::distributions::Alphanumeric;
@@ -18,7 +23,6 @@ use surrealdb::{
     sql::{self, Thing},
     Surreal,
 };
-use tracing::info;
 
 #[derive(Deserialize, Debug)]
 pub struct FormData {
@@ -69,62 +73,57 @@ pub async fn handler_subscribe(
     State(base_url): State<ApplicationBaseUrl>,
     State(database): State<Database>,
     Form(data): Form<FormData>,
-) -> Result<impl IntoResponse> {
-    info!("{:<8} - handler_subscribe", "HANDLER");
-
+) -> Result<Response, SubscribeError> {
     let transaction = Transaction::begin(&database.client).await?;
     let conn = transaction.conn;
-    let new_subscriber: NewSubscriber = match Form(data).0.try_into() {
-        Ok(subscriber) => subscriber,
-        Err(_) => return Ok(StatusCode::BAD_REQUEST),
-    };
+    let new_subscriber: NewSubscriber = Form(data)
+        .0
+        .try_into()
+        .map_err(SubscribeError::ValidationError)?;
 
-    let subscriber_id = match insert_subscriber(new_subscriber.clone(), conn).await {
-        Ok(id) => id,
-        Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-    tracing::info!("Subscriber ID: {:?}", subscriber_id);
+    let subscriber_id = insert_subscriber(&new_subscriber, conn)
+        .await
+        .map_err(|e| {
+            color_eyre::Report::msg(format!(
+                "Failed to insert new seubscriber in the database: {:?}",
+                e
+            ))
+        })?;
 
     let subscription_token = generate_subscription_token();
 
-    if store_token(&subscriber_id, &subscription_token, conn)
+    store_token(&subscriber_id, &subscription_token, conn)
         .await
-        .is_err()
-    {
-        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-    };
+        .context("Failed to store subscription token in the database")?;
+    // .map_err(|e| {
+    //     color_eyre::Report::msg(format!(
+    //         "Failed to store subscription token in the database: {:?}",
+    //         e
+    //     ))
+    // })?;
 
-    let tx_rs = transaction.commit().await;
+    transaction.commit().await.map_err(|e| {
+        color_eyre::Report::msg(format!(
+            "Failed to commit transaction to store a new subscriber: {:?}",
+            e
+        ))
+    })?;
 
-    let tx_res = match tx_rs {
-        Ok(response) => response,
-        Err(e) => {
-            tracing::error!("Failed to execute transaction: {:?}", e);
-            return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    if let Err(e) = tx_res.check() {
-        tracing::error!("Failed to execute transaction: {:?}", e);
-        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    match send_confirmation_email(
+    send_confirmation_email(
         &email_client,
         new_subscriber,
         &base_url.0,
         &subscription_token,
     )
     .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            tracing::error!("Failed to send confirmation email: {:?}", e);
-            return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
+    .map_err(|e| {
+        color_eyre::Report::msg(format!(
+            "Failed to send a confirmation email to the new subscriber: {:?}",
+            e
+        ))
+    })?;
 
-    Ok(StatusCode::OK)
+    Ok(StatusCode::OK.into_response())
 }
 // endregion: -- Subscribe Handler
 
@@ -144,9 +143,9 @@ pub struct Subscription {
     skip(new_subscriber, client)
 )]
 pub async fn insert_subscriber(
-    new_subscriber: NewSubscriber,
+    new_subscriber: &NewSubscriber,
     client: &Surreal<Client>,
-) -> color_eyre::Result<Thing> {
+) -> Result<Thing, surrealdb::Error> {
     let subscriber_uuid = sql::Uuid::new_v4().to_raw();
     let subscriber_id = Thing::from(("subscriptions".into(), subscriber_uuid));
 
@@ -158,8 +157,13 @@ pub async fn insert_subscriber(
         "pending_confirmation"
     );
 
-    client.query(query).await?.check()?;
-    Ok(subscriber_id)
+    match client.query(query).await?.check() {
+        Ok(_) => Ok(subscriber_id),
+        Err(e) => {
+            tracing::error!("Failed to execute query: {:?}", e);
+            Err(e)
+        }
+    }
 }
 // endregion: -- Insert Subscriber (SurrealDB Store)
 
@@ -179,7 +183,7 @@ pub async fn store_token(
     subscriber_id: &Thing,
     subscription_token: &str,
     client: &Surreal<Client>,
-) -> color_eyre::Result<()> {
+) -> Result<(), StoreTokenError> {
     let subtoken_uuid = sql::Uuid::new_v4().to_raw();
     let subtoken_id = Thing::from(("subscription_tokens".into(), subtoken_uuid));
 
@@ -191,7 +195,9 @@ pub async fn store_token(
     client
         .query(&query)
         .await
-        .context("Failed to add sub token query")?;
+        .map_err(StoreTokenError)?
+        .check()
+        .map_err(StoreTokenError)?;
 
     // Associate the subscription token with the subscriber
     let query = format!(
@@ -204,7 +210,9 @@ pub async fn store_token(
     client
         .query(&query)
         .await
-        .context("Failed to add relate query")?;
+        .map_err(StoreTokenError)?
+        .check()
+        .map_err(StoreTokenError)?;
 
     Ok(())
 }
@@ -220,7 +228,7 @@ pub async fn send_confirmation_email(
     new_subscriber: NewSubscriber,
     base_url: &str,
     subscription_token: &str,
-) -> std::result::Result<(), reqwest::Error> {
+) -> Result<(), reqwest::Error> {
     let confirmation_link = format!(
         "{}/subscribe/confirm?subscription_token={}",
         base_url, subscription_token

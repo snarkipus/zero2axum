@@ -74,10 +74,10 @@ async fn clicking_on_the_confirmation_link_confirms_a_subscriber() {
         .error_for_status()
         .unwrap();
 
-    let db = app.database.get_connection();
+    let client = app.database.client;
 
     let sql = "SELECT email, name, status FROM subscriptions";
-    let mut res = db
+    let mut res = client
         .query(sql)
         .await
         .expect("Failed to fetch saved subscription.");

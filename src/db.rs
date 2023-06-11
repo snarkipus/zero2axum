@@ -1,4 +1,3 @@
-use color_eyre::{eyre::Context, Result};
 use futures_core::future::BoxFuture;
 use secrecy::ExposeSecret;
 use surrealdb::{
@@ -8,7 +7,7 @@ use surrealdb::{
 };
 use surrealdb_migrations::SurrealdbMigrations;
 
-use crate::{configuration::Settings, error::Error};
+use crate::configuration::Settings;
 
 // region: -- Database
 #[derive(Clone, Debug)]
@@ -24,20 +23,16 @@ impl Database {
         fields(
             db = %configuration.database.database_name
         )
-      )]
-    pub async fn new(configuration: &Settings) -> Result<Self> {
+    )]
+    pub async fn new(configuration: &Settings) -> Result<Self, surrealdb::Error> {
         let connection_string = format!(
             "{}:{}",
             configuration.database.host, configuration.database.port
         );
 
         let client = match configuration.database.require_ssl {
-            true => Surreal::new::<Wss>(connection_string)
-                .await
-                .context("Failed to make Wss connection")?,
-            false => Surreal::new::<Ws>(connection_string)
-                .await
-                .context("Failed to make Ws connection")?,
+            true => Surreal::new::<Wss>(connection_string).await?,
+            false => Surreal::new::<Ws>(connection_string).await?,
         };
 
         client
@@ -45,14 +40,12 @@ impl Database {
                 username: &configuration.database.username,
                 password: configuration.database.password.expose_secret(),
             })
-            .await
-            .context("Failed to Sign-In")?;
+            .await?;
 
         client
             .use_ns("default")
             .use_db(&configuration.database.database_name)
-            .await
-            .context("Failed to get namespace & database")?;
+            .await?;
         Ok(Self { client })
     }
     // endregion: --- SurrealDB Initialization
@@ -64,23 +57,14 @@ impl Database {
         fields(
             db = %configuration.database.database_name
         )
-      )]
-    pub async fn migrate(&self, configuration: &Settings) -> Result<()> {
+    )]
+    pub async fn migrate(&self, configuration: &Settings) -> Result<(), anyhow::Error> {
         SurrealdbMigrations::new(configuration.database.with_db())
             .up()
-            .await
-            .map_err(|e| {
-                color_eyre::Report::msg(format!("Failed to run database migrations: {e}"))
-            })?;
+            .await?;
         Ok(())
     }
     // endregion: --- SurrealDB Migration
-
-    // region:: -- Get Connection
-    pub fn get_connection(&self) -> Surreal<Client> {
-        self.client.clone()
-    }
-    // endregion:: -- Get Connection
 }
 // endregion: --- Database
 
@@ -91,28 +75,26 @@ pub struct Transaction<'c> {
 }
 
 impl<'c> Transaction<'c> {
-    pub fn begin(conn: &'c Surreal<Client>) -> BoxFuture<'c, Result<Self, Error>> {
+    pub fn begin(conn: &'c Surreal<Client>) -> BoxFuture<'c, Result<Self, surrealdb::Error>> {
         Box::pin(async move {
             let sql = "BEGIN TRANSACTION;".to_string();
-            let response = conn.query(sql).await?;
-            response.check()?;
+            conn.query(sql).await?.check()?;
 
             Ok(Self { conn, open: true })
         })
     }
 
-    pub async fn commit(mut self) -> std::result::Result<Response, Error> {
+    pub async fn commit(mut self) -> std::result::Result<Response, surrealdb::Error> {
         let sql = "COMMIT TRANSACTION;";
         let response = self.conn.query(sql).await?.check()?;
         self.open = false;
         Ok(response)
     }
 
-    pub async fn rollback(mut self) -> BoxFuture<'c, Result<(), Error>> {
+    pub async fn rollback(mut self) -> BoxFuture<'c, Result<(), surrealdb::Error>> {
         Box::pin(async move {
             let sql = "CANCEL TRANSACTION;";
-            let response = self.conn.query(sql).await?;
-            response.check()?;
+            self.conn.query(sql).await?.check()?;
             self.open = false;
             Ok(())
         })

@@ -1,67 +1,115 @@
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use serde::Serialize;
-use thiserror::Error;
+use axum::response::{IntoResponse, Response};
+use hyper::StatusCode;
 
-pub type Result<T> = core::result::Result<T, Error>;
-
-#[derive(Clone, Debug, Serialize, strum_macros::AsRefStr, Error)]
-#[serde(tag = "type", content = "data")]
-pub enum Error {
-    // -- DB Errors
-    #[error("database error")]
-    SurrealDBError,
+#[derive(strum_macros::AsRefStr, thiserror::Error)]
+pub enum SubscribeError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] color_eyre::Report),
 }
 
-// // region: --- Error Display Impl
-// impl std::fmt::Display for Error {
-//     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> core::result::Result<(), std::fmt::Error> {
-//         write!(fmt, "{:?}", self)
-//     }
-// }
+impl From<surrealdb::Error> for SubscribeError {
+    fn from(error: surrealdb::Error) -> Self {
+        Self::UnexpectedError(error.into())
+    }
+}
 
-// impl std::error::Error for Error {}
-// endregion: --- Error Display Impl
+impl std::fmt::Debug for SubscribeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
 
-impl IntoResponse for Error {
+impl IntoResponse for SubscribeError {
     fn into_response(self) -> Response {
-        tracing::error!("->> {:<8} - {self:?}", "INTO_RES");
-
-        // Axum error response
-        let mut response = StatusCode::INTERNAL_SERVER_ERROR.into_response();
-
-        // Insert the Error into the response
+        let mut response = match self {
+            SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST.into_response(),
+            SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        };
         response.extensions_mut().insert(self);
 
         response
     }
 }
 
-impl From<surrealdb::Error> for Error {
+// region: -- TransactionError
+pub struct TransactionError(surrealdb::Error);
+
+impl std::fmt::Display for TransactionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A database failure was encountered while trying perform a transaction."
+        )
+    }
+}
+
+impl IntoResponse for TransactionError {
+    fn into_response(self) -> Response {
+        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+impl From<surrealdb::Error> for TransactionError {
     fn from(error: surrealdb::Error) -> Self {
-        eprintln!("{error}");
-        Self::SurrealDBError
+        Self(error)
     }
 }
 
-impl Error {
-    pub fn client_status_and_error(&self) -> (StatusCode, ClientError) {
-        match self {
-            Error::SurrealDBError => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ClientError::SERVICE_ERROR,
-            ),
-        }
+impl std::error::Error for TransactionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
     }
 }
 
-#[derive(Debug, strum_macros::AsRefStr)]
-#[allow(non_camel_case_types)]
-pub enum ClientError {
-    LOGIN_FAIL,
-    NO_AUTH,
-    INVALID_PARAMS,
-    SERVICE_ERROR,
+impl std::fmt::Debug for TransactionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+// endregion: TransactionError
+
+// region: -- StoreTokenError
+pub struct StoreTokenError(pub surrealdb::Error);
+
+impl From<surrealdb::Error> for StoreTokenError {
+    fn from(error: surrealdb::Error) -> Self {
+        Self(error)
+    }
+}
+
+impl std::error::Error for StoreTokenError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+impl std::fmt::Debug for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl std::fmt::Display for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A database failure was encountered while trying to store a subscription token."
+        )
+    }
+}
+// endregion: StoreTokenError
+
+pub fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    writeln!(f, "{}\n", e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        writeln!(f, "Caused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
 }

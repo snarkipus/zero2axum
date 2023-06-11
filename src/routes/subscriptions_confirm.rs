@@ -6,7 +6,7 @@ use axum::{
 use axum_macros::debug_handler;
 use surrealdb::sql::Thing;
 
-use crate::error::Result;
+// use crate::error::Result;
 use crate::{db::Database, startup::AppState};
 
 #[derive(serde::Deserialize)]
@@ -20,7 +20,7 @@ pub struct Parameters {
 pub async fn handler_confirm(
     State(database): State<Database>,
     Query(parameters): Query<Parameters>,
-) -> Result<impl IntoResponse> {
+) -> axum::response::Result<impl IntoResponse> {
     let id = match get_subscriber_id_from_token(&parameters.subscription_token, &database).await {
         Ok(id) => id,
         Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
@@ -44,11 +44,11 @@ pub async fn confirm_subscriber(
     subscriber_id: &Thing,
     database: &Database,
 ) -> std::result::Result<(), surrealdb::Error> {
-    let db = database.get_connection();
+    let client = &database.client;
 
     let sql = "UPDATE subscriptions SET status = 'confirmed' WHERE id = $subscriber_id";
 
-    let _ = db
+    let _ = client
         .query(sql)
         .bind(("subscriber_id", subscriber_id))
         .await
@@ -69,14 +69,14 @@ pub async fn get_subscriber_id_from_token(
     subscription_token: &str,
     database: &Database,
 ) -> std::result::Result<Option<Thing>, surrealdb::Error> {
-    let db = database.get_connection();
+    let client = &database.client;
 
     let sql = "
         let $token_id = SELECT id FROM subscription_tokens WHERE subscription_token = $subscription_token;
         SELECT *, $token_id->subscribes->id from subscriptions;
     ";
 
-    let res = db
+    let res = client
         .query(sql)
         .bind(("subscription_token", subscription_token))
         .await

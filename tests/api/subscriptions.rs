@@ -42,7 +42,7 @@ async fn subscribe_persists_the_new_subscriber() {
     app.post_subscriptions(body.into()).await;
 
     // Assert
-    let db = app.database.get_connection();
+    let client = app.database.client;
 
     #[allow(dead_code)]
     #[derive(serde::Deserialize, Debug)]
@@ -54,7 +54,7 @@ async fn subscribe_persists_the_new_subscriber() {
     }
 
     let sql = "SELECT email, name, status, id FROM subscriptions";
-    let mut res = db
+    let mut res = client
         .query(sql)
         .await
         .expect("Failed to fetch saved subscription.");
@@ -168,8 +168,8 @@ async fn subscribe_fails_if_there_is_a_fatal_database_error() {
 
     // Force a database error
     let sql = "DEFINE FIELD subscription_token ON subscription_tokens TYPE number ASSERT $value != NONE AND is::numeric($value);";
-    let db = app.database.get_connection();
-    db.query(sql).await.expect("Failed to update a table.");
+    let client = &app.database.client;
+    client.query(sql).await.expect("Failed to update a table.");
 
     // Act
     let response = app.post_subscriptions(body.into()).await;

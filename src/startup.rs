@@ -1,4 +1,7 @@
 use axum::extract::FromRef;
+use axum::http::{Method, Uri};
+use axum::middleware;
+use axum::response::{IntoResponse, Response};
 use axum::{
     routing::{get, post, IntoMakeService},
     Router, Server,
@@ -6,12 +9,14 @@ use axum::{
 use color_eyre::Result;
 
 use color_eyre::eyre::Context;
+use hyper::StatusCode;
 use hyper::{server::conn::AddrIncoming, Body};
 use std::{net::TcpListener, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::error::SubscribeError;
 use crate::{
     configuration::Settings, db::Database, email_client::EmailClient, routes,
     routes::handler_confirm,
@@ -129,6 +134,7 @@ pub async fn run(
         .route("/health_check", get(routes::handler_health_check))
         .route("/subscribe", post(routes::handler_subscribe))
         .route("/subscribe/confirm", get(handler_confirm))
+        .layer(middleware::map_response(main_response_mapper))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
                 let uuid = Uuid::new_v4();
@@ -148,4 +154,20 @@ pub async fn run(
         })
         .serve(app.into_make_service());
     Ok(server)
+}
+
+// #[debug_handler]
+async fn main_response_mapper(uri: Uri, req_method: Method, res: Response) -> Response {
+    // Response Error
+    let res_err = res.extensions().get::<SubscribeError>();
+    if let Some(res_err) = res_err {
+        tracing::error!("uri:{} method:{}\n{:?}", uri, req_method, res_err);
+        match res_err {
+            SubscribeError::UnexpectedError(_) => {
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+            SubscribeError::ValidationError(_) => return StatusCode::BAD_REQUEST.into_response(),
+        }
+    }
+    res
 }
