@@ -94,7 +94,6 @@ async fn newsletters_returns_422_for_invalid_data(
     );
 }
 
-
 async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 

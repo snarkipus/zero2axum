@@ -1,10 +1,10 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use validator::validate_email;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {
