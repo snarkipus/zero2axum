@@ -16,7 +16,7 @@ use tower_http::trace::TraceLayer;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::error::{SubscribeError, ConfirmationError};
+use crate::error::{ConfirmationError, SubscribeError};
 use crate::{
     configuration::Settings, db::Database, email_client::EmailClient, routes,
     routes::handler_confirm,

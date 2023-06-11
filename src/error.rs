@@ -60,7 +60,9 @@ impl IntoResponse for ConfirmationError {
     fn into_response(self) -> Response {
         let mut response = match self {
             ConfirmationError::UnknownToken => StatusCode::UNAUTHORIZED.into_response(),
-            ConfirmationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            ConfirmationError::UnexpectedError(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
         };
         response.extensions_mut().insert(self);
 
