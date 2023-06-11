@@ -1,7 +1,7 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use validator::validate_email;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

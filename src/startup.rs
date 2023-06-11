@@ -17,7 +17,7 @@ use tower_http::trace::TraceLayer;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::error::{ConfirmationError, SubscribeError};
+use crate::error::{ConfirmationError, PublishError, SubscribeError};
 use crate::{
     configuration::Settings, db::Database, email_client::EmailClient, routes,
     routes::handler_confirm,
@@ -193,6 +193,17 @@ async fn main_response_mapper(uri: Uri, req_method: Method, res: Response) -> Re
             }
             ConfirmationError::UnknownToken => {
                 return client_response_builder(StatusCode::UNAUTHORIZED, uuid)
+            }
+        }
+    }
+
+    // Publish Response Error
+    let res_err = res.extensions().get::<PublishError>();
+    if let Some(res_err) = res_err {
+        tracing::error!("Service Error: {:?}", res_err);
+        match res_err {
+            PublishError::UnexpectedError(_) => {
+                return client_response_builder(StatusCode::INTERNAL_SERVER_ERROR, uuid)
             }
         }
     }

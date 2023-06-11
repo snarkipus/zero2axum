@@ -139,6 +139,31 @@ impl std::fmt::Display for StoreTokenError {
 }
 // endregion: StoreTokenError
 
+// region: -- Publish Error
+#[derive(strum_macros::AsRefStr, thiserror::Error)]
+pub enum PublishError {
+    #[error(transparent)]
+    UnexpectedError(#[from] color_eyre::Report),
+}
+
+impl std::fmt::Debug for PublishError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        crate::error::error_chain_fmt(self, f)
+    }
+}
+
+impl IntoResponse for PublishError {
+    fn into_response(self) -> Response {
+        let mut response = match self {
+            PublishError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        };
+        response.extensions_mut().insert(self);
+
+        response
+    }
+}
+// endregion: Publish Error
+
 // region: -- Error Chaining (clever)
 pub fn error_chain_fmt(
     e: &impl std::error::Error,

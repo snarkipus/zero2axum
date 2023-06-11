@@ -11,7 +11,10 @@ use hyper::StatusCode;
 use serde::Deserialize;
 use surrealdb::{engine::remote::ws::Client, Surreal};
 
-use crate::{db::Database, domain::SubscriberEmail, email_client::EmailClient, startup::AppState};
+use crate::{
+    db::Database, domain::SubscriberEmail, email_client::EmailClient, error::PublishError,
+    startup::AppState,
+};
 
 #[derive(Deserialize)]
 pub struct BodyData {
@@ -33,17 +36,29 @@ pub async fn publish_newsletter(
 ) -> Result<Response, PublishError> {
     let subscribers = get_confirmed_subscribers(database.client).await?;
     for subscriber in subscribers {
-        email_client
-            .send_email(
-                subscriber.email.clone(),
-                &body.title,
-                &body.content.html,
-                &body.content.text,
-            )
-            .await
-            .wrap_err_with(|| format!("Failed to send newsletter to {}", subscriber.email))?;
+        match subscriber {
+            Ok(subscriber) => {
+                email_client
+                    .send_email(
+                        &subscriber.email,
+                        &body.title,
+                        &body.content.html,
+                        &body.content.text,
+                    )
+                    .await
+                    .wrap_err_with(|| {
+                        format!("Failed to send newsletter to {}", subscriber.email)
+                    })?;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    e.cause_chain = ?e,
+                    "Skipping a confirmed subscriber. \
+                    Their stored contact details are invalid.",
+                );
+            }
+        }
     }
-
     Ok(StatusCode::OK.into_response())
 }
 
@@ -55,7 +70,7 @@ struct ConfirmedSubscriber {
 #[tracing::instrument(name = "Getting Confirmed Subscribers", skip(conn))]
 async fn get_confirmed_subscribers(
     conn: Surreal<Client>,
-) -> color_eyre::Result<Vec<ConfirmedSubscriber>> {
+) -> color_eyre::Result<Vec<color_eyre::Result<ConfirmedSubscriber>>> {
     #[derive(Deserialize)]
     struct Subscriber {
         email: String,
@@ -68,42 +83,11 @@ async fn get_confirmed_subscribers(
 
     let confirmed_subscribers = subscribers
         .into_iter()
-        .filter_map(|r| match SubscriberEmail::parse(r.email) {
-            Ok(email) => Some(ConfirmedSubscriber { email }),
-            Err(e) => {
-                tracing::warn!(
-                    "A confirmed subscriber is using an invalid email address.\n{}",
-                    e
-                );
-                None
-            }
+        .map(|r| match SubscriberEmail::parse(r.email) {
+            Ok(email) => Ok(ConfirmedSubscriber { email }),
+            Err(e) => Err(color_eyre::Report::msg(format!("Failed to parse {}", e))),
         })
         .collect();
 
     Ok(confirmed_subscribers)
 }
-
-// region: -- Error
-#[derive(strum_macros::AsRefStr, thiserror::Error)]
-pub enum PublishError {
-    #[error(transparent)]
-    UnexpectedError(#[from] color_eyre::Report),
-}
-
-impl std::fmt::Debug for PublishError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        crate::error::error_chain_fmt(self, f)
-    }
-}
-
-impl IntoResponse for PublishError {
-    fn into_response(self) -> Response {
-        let mut response = match self {
-            PublishError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        };
-        response.extensions_mut().insert(self);
-
-        response
-    }
-}
-// endregion: Error
