@@ -72,6 +72,18 @@ impl TestApp {
 
         ConfirmationLinks { html, plain_text }
     }
+
+    pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
+        reqwest::Client::new()
+            .post(&format!(
+                "http://{}:{}/newsletters",
+                &self.configuration.application.host, &self.configuration.application.port
+            ))
+            .json(&body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
 }
 
 #[allow(clippy::let_underscore_future)]

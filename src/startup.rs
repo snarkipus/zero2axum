@@ -135,6 +135,7 @@ pub async fn run(
         .route("/health_check", get(routes::handler_health_check))
         .route("/subscribe", post(routes::handler_subscribe))
         .route("/subscribe/confirm", get(handler_confirm))
+        .route("/newsletters", post(routes::publish_newsletter))
         .layer(middleware::map_response(main_response_mapper))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {

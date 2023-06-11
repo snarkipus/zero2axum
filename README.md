@@ -35,7 +35,7 @@
 - [x] Chapter 5: Going Live ([v0.1.5](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.5))
 - [x] Chapter 6: Reject Invalid Subscribers #1 ([v0.1.6](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.6))
 - [x] Chapter 7: Reject Invalid Subscribers #2 ([v0.1.7](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.7))
-- [ ] Chapter 8: Error Handling
+- [x] Chapter 8: Error Handling([v0.1.8](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.8))
 - [ ] Chapter 9: Naive Newsletter Delivery
 - [ ] Chapter 10: Securing our API
 - [ ] Chapter 11: Fault Tolerant Workflows
@@ -92,6 +92,7 @@ default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> SELECT * FROM subscriptions;
 </details>
 
 ## Solutions
+- [Zero To Production](https://github.com/LukeMathWalker/zero-to-production/tree/main)
 - [Zero To Production (with axum)](https://github.com/mattiapenati/zero2prod)
 - [An implementation of Zero To Production In Rust using Axum instead of Actix (partial)](https://github.com/SaadiSave/zero2prod)
 
@@ -107,14 +108,7 @@ default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> SELECT * FROM subscriptions;
 | rstest | [0.17.0](https://docs.rs/rstest/0.17.0/rstest/) |
 | surrealdb | [1.0.0-beta.9](https://docs.rs/surrealdb/1.0.0-beta.9+20230402/surrealdb/) |
 
-## Watch Commands
-Backend (Server):
 
-`cargo watch -q -c -w src/ -x run`
-
-Frontend (Client):
-
-`cargo watch -q -c -w tests/ -x "test -q quick_test -- --nocapture"`
 
 ## Chapter 1
 - Toolchain: 1.69.0
@@ -776,3 +770,24 @@ flowchart LR
   ide2 --> id7
 ```
 Unfortunately, the PostgreSQL implementation relies heavily on the viper's nest of traits, so I'm just going to naively flatten it into a simple struct with some basic `impl` methods somewhat derived from the PostgreSQL solution.
+
+---
+
+Ok, so in the end, error handling was pretty educational. I'm sure this implementation isn't completely correct, but in the end the concepts are still sound. The solution here, borrowed from Jeremy Chone, is to use the `response_mapper` middleware component to handle the errors (if present) in a granular fashion. This does overlap somewhat with the actual `IntoResponse` impl's for the errors themselves, so I'm sure there's some duplication/waste here. One thing I certainly don't fully understand is if you pay any sort of  performance penalty for solving it this way. I'm sure the middleware doesn't come for free ... but for something like this is very likely might be appropriate. One thing of interest is the ability to craft a client response and segregate it from the server logs cleanly. This subtly was lost on me in the incredibly dense YouTube video that Jeremy did.
+
+## Chapter 9: Naive Newsletter Delivery
+
+```mermaid
+flowchart TB
+  subgraph block1 ["WAS"]
+    id1(["As the blog author,
+          I want to send an email to all my subscribers,
+          So that I can notify them when new content is published."])
+  end
+  subgraph block2 ["IS"]
+    id2(["As the blog author,
+          I want to send an email to all my 'confirmed' subscribers,
+          So that I can notify them when new content is published."])
+  end
+  block1 --> block2
+```
