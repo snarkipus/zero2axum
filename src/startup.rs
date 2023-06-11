@@ -16,7 +16,7 @@ use tower_http::trace::TraceLayer;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::error::SubscribeError;
+use crate::error::{SubscribeError, ConfirmationError};
 use crate::{
     configuration::Settings, db::Database, email_client::EmailClient, routes,
     routes::handler_confirm,
@@ -156,9 +156,8 @@ pub async fn run(
     Ok(server)
 }
 
-// #[debug_handler]
 async fn main_response_mapper(uri: Uri, req_method: Method, res: Response) -> Response {
-    // Response Error
+    // Subscribe Response Error
     let res_err = res.extensions().get::<SubscribeError>();
     if let Some(res_err) = res_err {
         tracing::error!("uri:{} method:{}\n{:?}", uri, req_method, res_err);
@@ -169,5 +168,18 @@ async fn main_response_mapper(uri: Uri, req_method: Method, res: Response) -> Re
             SubscribeError::ValidationError(_) => return StatusCode::BAD_REQUEST.into_response(),
         }
     }
+
+    // Subscribe Confirmation Response Error
+    let res_err = res.extensions().get::<ConfirmationError>();
+    if let Some(res_err) = res_err {
+        tracing::error!("uri:{} method:{}\n{:?}", uri, req_method, res_err);
+        match res_err {
+            ConfirmationError::UnexpectedError(_) => {
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+            ConfirmationError::UnknownToken => return StatusCode::UNAUTHORIZED.into_response(),
+        }
+    }
+
     res
 }

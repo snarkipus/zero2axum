@@ -83,31 +83,18 @@ pub async fn handler_subscribe(
 
     let subscriber_id = insert_subscriber(&new_subscriber, conn)
         .await
-        .map_err(|e| {
-            color_eyre::Report::msg(format!(
-                "Failed to insert new seubscriber in the database: {:?}",
-                e
-            ))
-        })?;
+        .context("Failed to insert new seubscriber in the database.")?;
 
     let subscription_token = generate_subscription_token();
 
     store_token(&subscriber_id, &subscription_token, conn)
         .await
         .context("Failed to store subscription token in the database")?;
-    // .map_err(|e| {
-    //     color_eyre::Report::msg(format!(
-    //         "Failed to store subscription token in the database: {:?}",
-    //         e
-    //     ))
-    // })?;
 
-    transaction.commit().await.map_err(|e| {
-        color_eyre::Report::msg(format!(
-            "Failed to commit transaction to store a new subscriber: {:?}",
-            e
-        ))
-    })?;
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit transaction to store a new subscriber.")?;
 
     send_confirmation_email(
         &email_client,
@@ -116,12 +103,7 @@ pub async fn handler_subscribe(
         &subscription_token,
     )
     .await
-    .map_err(|e| {
-        color_eyre::Report::msg(format!(
-            "Failed to send a confirmation email to the new subscriber: {:?}",
-            e
-        ))
-    })?;
+    .context("Failed to send a confirmation email to the new subscriber.")?;
 
     Ok(StatusCode::OK.into_response())
 }
@@ -159,10 +141,7 @@ pub async fn insert_subscriber(
 
     match client.query(query).await?.check() {
         Ok(_) => Ok(subscriber_id),
-        Err(e) => {
-            tracing::error!("Failed to execute query: {:?}", e);
-            Err(e)
-        }
+        Err(e) => Err(e),
     }
 }
 // endregion: -- Insert Subscriber (SurrealDB Store)
@@ -192,12 +171,7 @@ pub async fn store_token(
         subtoken_id, &subscription_token
     );
 
-    client
-        .query(&query)
-        .await
-        .map_err(StoreTokenError)?
-        .check()
-        .map_err(StoreTokenError)?;
+    client.query(&query).await?.check()?;
 
     // Associate the subscription token with the subscriber
     let query = format!(
@@ -207,12 +181,7 @@ pub async fn store_token(
         Thing::from(("subscribes".into(), sql::Uuid::new_v4().to_string()))
     );
 
-    client
-        .query(&query)
-        .await
-        .map_err(StoreTokenError)?
-        .check()
-        .map_err(StoreTokenError)?;
+    client.query(&query).await?.check()?;
 
     Ok(())
 }

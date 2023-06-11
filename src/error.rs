@@ -1,6 +1,7 @@
 use axum::response::{IntoResponse, Response};
 use hyper::StatusCode;
 
+// region: -- SubscribeError
 #[derive(strum_macros::AsRefStr, thiserror::Error)]
 pub enum SubscribeError {
     #[error("{0}")]
@@ -26,6 +27,40 @@ impl IntoResponse for SubscribeError {
         let mut response = match self {
             SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST.into_response(),
             SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        };
+        response.extensions_mut().insert(self);
+
+        response
+    }
+}
+// endregion: SubscribeError
+
+// region: -- ConfrimationError
+#[derive(strum_macros::AsRefStr, thiserror::Error)]
+pub enum ConfirmationError {
+    #[error("There is no subscriber associated with the provided token.")]
+    UnknownToken,
+    #[error(transparent)]
+    UnexpectedError(#[from] color_eyre::Report),
+}
+
+impl std::fmt::Debug for ConfirmationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl From<surrealdb::Error> for ConfirmationError {
+    fn from(error: surrealdb::Error) -> Self {
+        Self::UnexpectedError(error.into())
+    }
+}
+
+impl IntoResponse for ConfirmationError {
+    fn into_response(self) -> Response {
+        let mut response = match self {
+            ConfirmationError::UnknownToken => StatusCode::UNAUTHORIZED.into_response(),
+            ConfirmationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         };
         response.extensions_mut().insert(self);
 
@@ -101,6 +136,7 @@ impl std::fmt::Display for StoreTokenError {
 }
 // endregion: StoreTokenError
 
+// region: -- Error Chaining (clever)
 pub fn error_chain_fmt(
     e: &impl std::error::Error,
     f: &mut std::fmt::Formatter<'_>,
@@ -113,3 +149,4 @@ pub fn error_chain_fmt(
     }
     Ok(())
 }
+// endregion: Error Chaining (clever)

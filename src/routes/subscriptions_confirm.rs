@@ -1,13 +1,14 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use axum_macros::debug_handler;
+use color_eyre::eyre::Context;
 use surrealdb::sql::Thing;
 
 // use crate::error::Result;
-use crate::{db::Database, startup::AppState};
+use crate::{db::Database, error::ConfirmationError, startup::AppState};
 
 #[derive(serde::Deserialize)]
 pub struct Parameters {
@@ -20,21 +21,17 @@ pub struct Parameters {
 pub async fn handler_confirm(
     State(database): State<Database>,
     Query(parameters): Query<Parameters>,
-) -> axum::response::Result<impl IntoResponse> {
-    let id = match get_subscriber_id_from_token(&parameters.subscription_token, &database).await {
-        Ok(id) => id,
-        Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-    match id {
-        Some(subscriber_id) => {
-            if confirm_subscriber(&subscriber_id, &database).await.is_err() {
-                return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-            }
+) -> Result<Response, ConfirmationError> {
+    let id = get_subscriber_id_from_token(&parameters.subscription_token, &database)
+        .await
+        .context("Failed to retrieve the subscriber id associated with the provided token.")?
+        .ok_or(ConfirmationError::UnknownToken)?;
 
-            Ok(StatusCode::OK)
-        }
-        None => Ok(StatusCode::UNAUTHORIZED),
-    }
+    confirm_subscriber(&id, &database)
+        .await
+        .context("Failed to confirm the subscriber.")?;
+
+    Ok(StatusCode::OK.into_response())
 }
 // endregion: -- Confirm Subscriber (HTTP Handler)
 
@@ -48,14 +45,12 @@ pub async fn confirm_subscriber(
 
     let sql = "UPDATE subscriptions SET status = 'confirmed' WHERE id = $subscriber_id";
 
-    let _ = client
+    client
         .query(sql)
         .bind(("subscriber_id", subscriber_id))
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to execute query: {:?}", e);
-            e
-        })?;
+        .await?
+        .check()?;
+
     Ok(())
 }
 // endregion: -- Confirm Subscriber (SurrealDB Update)
@@ -76,16 +71,13 @@ pub async fn get_subscriber_id_from_token(
         SELECT *, $token_id->subscribes->id from subscriptions;
     ";
 
-    let res = client
+    let mut res = client
         .query(sql)
         .bind(("subscription_token", subscription_token))
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to execute query: {:?}", e);
-            e
-        })?;
+        .await?
+        .check()?;
 
-    let subscriber_id: Option<Thing> = res.check()?.take((1, "id"))?;
+    let subscriber_id: Option<Thing> = res.take((1, "id"))?;
 
     Ok(subscriber_id)
 }
