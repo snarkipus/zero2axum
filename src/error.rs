@@ -69,6 +69,7 @@ impl IntoResponse for ConfirmationError {
         response
     }
 }
+// endregion: ConfirmationError
 
 // region: -- TransactionError
 pub struct TransactionError(surrealdb::Error);

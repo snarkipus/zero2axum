@@ -11,6 +11,7 @@ use color_eyre::Result;
 use color_eyre::eyre::Context;
 use hyper::StatusCode;
 use hyper::{server::conn::AddrIncoming, Body};
+use serde_json::json;
 use std::{net::TcpListener, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::warn;
@@ -156,30 +157,70 @@ pub async fn run(
     Ok(server)
 }
 
+#[tracing::instrument(
+    name = "Main Response Mapper",
+    skip(uri, req_method, res),
+    fields(
+        uri = %uri,
+        method = %req_method,
+    )
+)]
 async fn main_response_mapper(uri: Uri, req_method: Method, res: Response) -> Response {
+    let uuid = Uuid::new_v4();
+
     // Subscribe Response Error
     let res_err = res.extensions().get::<SubscribeError>();
     if let Some(res_err) = res_err {
-        tracing::error!("uri:{} method:{}\n{:?}", uri, req_method, res_err);
+        tracing::error!("Service Error: {:?}", res_err);
         match res_err {
             SubscribeError::UnexpectedError(_) => {
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                return client_response_builder(StatusCode::INTERNAL_SERVER_ERROR, uuid)
             }
-            SubscribeError::ValidationError(_) => return StatusCode::BAD_REQUEST.into_response(),
+            SubscribeError::ValidationError(_) => {
+                return client_response_builder(StatusCode::BAD_REQUEST, uuid)
+            }
         }
     }
 
     // Subscribe Confirmation Response Error
     let res_err = res.extensions().get::<ConfirmationError>();
     if let Some(res_err) = res_err {
-        tracing::error!("uri:{} method:{}\n{:?}", uri, req_method, res_err);
+        tracing::error!("Service Error: {:?}", res_err);
         match res_err {
             ConfirmationError::UnexpectedError(_) => {
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                return client_response_builder(StatusCode::INTERNAL_SERVER_ERROR, uuid)
             }
-            ConfirmationError::UnknownToken => return StatusCode::UNAUTHORIZED.into_response(),
+            ConfirmationError::UnknownToken => {
+                return client_response_builder(StatusCode::UNAUTHORIZED, uuid)
+            }
         }
     }
+
+    // region: Client Error Response Builder
+    #[tracing::instrument(
+        name = "Client Error Response Builder",
+        skip(status_code, uuid),
+        fields(
+            status = %status_code,
+            id = %uuid,
+        )
+    )]
+    fn client_response_builder(status_code: StatusCode, uuid: Uuid) -> Response {
+        let client_response_body = json!({
+            "error": {
+                "type:": status_code.as_str(),
+                "request_id": uuid.to_string(),
+            }
+        });
+        tracing::error!("Client Error: {:?}", client_response_body);
+        let res = Response::builder()
+            .status(status_code)
+            .header("Content-Type", "application/json")
+            .body(Body::from(client_response_body.to_string()))
+            .unwrap();
+        res.into_response()
+    }
+    // endregion: -- Client Error Response Builder
 
     res
 }
