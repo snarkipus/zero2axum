@@ -4629,6 +4629,7 @@ dependencies = [
  "anyhow",
  "axum",
  "axum-macros",
+ "base64 0.21.2",
  "claims",
  "color-eyre",
  "config",

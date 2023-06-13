@@ -1,5 +1,5 @@
 use std::sync::Arc;
-
+use base64::Engine;
 use axum::{
     extract::State,
     response::{IntoResponse, Response},
@@ -7,9 +7,10 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use color_eyre::eyre::Context;
-use hyper::StatusCode;
+use hyper::{StatusCode, HeaderMap};
 use serde::Deserialize;
 use surrealdb::{engine::remote::ws::Client, Surreal};
+use secrecy::Secret;
 
 use crate::{
     db::Database, domain::SubscriberEmail, email_client::EmailClient, error::PublishError,
@@ -31,13 +32,15 @@ pub struct Content {
 #[debug_handler(state = AppState)]
 #[tracing::instrument(
     name = "Publishing a newsletter",
-    skip(database, email_client, body),
+    skip(database, email_client, headers, body),
 )]
 pub async fn publish_newsletter(
     State(database): State<Database>,
     State(email_client): State<Arc<EmailClient>>,
+    headers: HeaderMap,
     body: Json<BodyData>,
 ) -> Result<Response, PublishError> {
+    let _credentials = basic_authentication(&headers).map_err(PublishError::AuthError)?;
     let subscribers = get_confirmed_subscribers(database.client).await?;
     for subscriber in subscribers {
         match subscriber {
@@ -65,6 +68,49 @@ pub async fn publish_newsletter(
     }
     Ok(StatusCode::OK.into_response())
 }
+
+#[allow(unused)]
+struct Credentials {
+    username: String,
+    password: Secret<String>,
+}
+
+fn basic_authentication(headers: &HeaderMap) -> color_eyre::Result<Credentials> {
+    let header_value = headers
+        .get("Authorization")
+        .ok_or_else(|| color_eyre::eyre::eyre!("Missing authorization header"))?
+        .to_str()
+        .context("Authorization header was not valid UTF8")?;
+
+    let base64encoded_credentials = header_value
+        .strip_prefix("Basic ")
+        .ok_or_else(|| color_eyre::eyre::eyre!("Authorization header did not start with Basic"))?;
+
+    let decoded_credentials = base64::engine::general_purpose::STANDARD
+        .decode(base64encoded_credentials)
+        .map_err(|e| color_eyre::eyre::eyre!("Failed to base64-decode credentials: {}", e))?;
+
+    let decoded_credentials = String::from_utf8(decoded_credentials)
+        .map_err(|e| color_eyre::eyre::eyre!("Credentials were not valid UTF8: {}", e))?;
+
+    let mut credentials = decoded_credentials.splitn(2, ':');
+
+    let username = credentials
+        .next()
+        .ok_or_else(|| color_eyre::eyre::eyre!("A username must be provided in 'Basic' auth."))?
+        .to_owned();
+
+    let password = credentials
+        .next()
+        .ok_or_else(|| color_eyre::eyre::eyre!("A password must be provided in 'Basic' auth."))?
+        .to_owned();
+
+    Ok(Credentials {
+        username,
+        password: Secret::new(password),
+    })
+}
+
 
 #[derive(Deserialize)]
 struct ConfirmedSubscriber {

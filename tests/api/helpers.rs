@@ -80,6 +80,7 @@ impl TestApp {
                 "http://{}:{}/newsletters",
                 &self.configuration.application.host, &self.configuration.application.port
             ))
+            .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
             .json(&body)
             .send()
             .await

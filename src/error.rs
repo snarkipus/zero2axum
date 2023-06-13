@@ -134,8 +134,10 @@ impl std::fmt::Display for StoreTokenError {
 // endregion: StoreTokenError
 
 // region: -- Publish Error
-#[derive(strum_macros::AsRefStr, thiserror::Error)]
+#[derive(thiserror::Error)]
 pub enum PublishError {
+    #[error("Authentication failed.")]
+    AuthError(#[source] color_eyre::eyre::Error),    
     #[error(transparent)]
     UnexpectedError(#[from] color_eyre::eyre::Error),
 }
@@ -150,6 +152,14 @@ impl IntoResponse for PublishError {
     fn into_response(self) -> Response {
         match self {
             PublishError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            PublishError::AuthError(_) => {
+                let response = Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .header("WWW-Authenticate", r#"Basic realm="publish""#)
+                    .body(hyper::Body::empty())
+                    .unwrap();
+                response.into_response()
+            }
         }
     }
 }
