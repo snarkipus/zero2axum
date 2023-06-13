@@ -1,16 +1,16 @@
-use std::sync::Arc;
-use base64::Engine;
 use axum::{
     extract::State,
     response::{IntoResponse, Response},
     Json,
 };
 use axum_macros::debug_handler;
+use base64::Engine;
 use color_eyre::eyre::Context;
-use hyper::{StatusCode, HeaderMap};
+use hyper::{HeaderMap, StatusCode};
+use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
-use surrealdb::{engine::remote::ws::Client, Surreal};
-use secrecy::Secret;
+use std::sync::Arc;
+use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
 
 use crate::{
     db::Database, domain::SubscriberEmail, email_client::EmailClient, error::PublishError,
@@ -32,7 +32,7 @@ pub struct Content {
 #[debug_handler(state = AppState)]
 #[tracing::instrument(
     name = "Publishing a newsletter",
-    skip(database, email_client, headers, body),
+    skip(database, email_client, headers, body)
 )]
 pub async fn publish_newsletter(
     State(database): State<Database>,
@@ -40,7 +40,12 @@ pub async fn publish_newsletter(
     headers: HeaderMap,
     body: Json<BodyData>,
 ) -> Result<Response, PublishError> {
-    let _credentials = basic_authentication(&headers).map_err(PublishError::AuthError)?;
+    let credentials = basic_authentication(&headers).map_err(PublishError::AuthError)?;
+
+    tracing::Span::current().record("username", &tracing::field::display(&credentials.username));
+    let user_id = validate_credentials(credentials, &database.client).await?;
+    tracing::Span::current().record("user_id", &tracing::field::display(&user_id.id));
+
     let subscribers = get_confirmed_subscribers(database.client).await?;
     for subscriber in subscribers {
         match subscriber {
@@ -69,8 +74,8 @@ pub async fn publish_newsletter(
     Ok(StatusCode::OK.into_response())
 }
 
-#[allow(unused)]
-struct Credentials {
+#[derive(Deserialize)]
+pub struct Credentials {
     username: String,
     password: Secret<String>,
 }
@@ -108,9 +113,9 @@ fn basic_authentication(headers: &HeaderMap) -> color_eyre::Result<Credentials> 
     Ok(Credentials {
         username,
         password: Secret::new(password),
+        // password,
     })
 }
-
 
 #[derive(Deserialize)]
 struct ConfirmedSubscriber {
@@ -140,4 +145,28 @@ async fn get_confirmed_subscribers(
         .collect();
 
     Ok(confirmed_subscribers)
+}
+
+async fn validate_credentials(
+    credentials: Credentials,
+    conn: &Surreal<Client>,
+) -> Result<Thing, PublishError> {
+    let sql = "SELECT id FROM users WHERE username = $username and password = $password LIMIT 1";
+
+    let mut res = conn
+        .query(sql)
+        .bind(("username", credentials.username))
+        .bind(("password", credentials.password.expose_secret()))
+        .await?
+        .check()?;
+
+    let user_id: Option<Thing> = res.take((0, "id")).context("Invalid credentials")?;
+
+    if let Some(user_id) = user_id {
+        Ok(user_id)
+    } else {
+        Err(PublishError::AuthError(color_eyre::eyre::eyre!(
+            "Invalid credentials"
+        )))
+    }
 }

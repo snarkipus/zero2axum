@@ -1,11 +1,12 @@
 use once_cell::sync::Lazy;
+use surrealdb::{sql::Thing, Surreal, engine::remote::ws::Client};
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2axum::{
     configuration::{get_configuration, Settings},
     db::Database,
     startup::Application,
-    telemetry::{get_subscriber, init_subscriber},
+    telemetry::{get_subscriber, init_subscriber}
 };
 
 // region: -- conditional tracing for tests
@@ -75,16 +76,30 @@ impl TestApp {
     }
 
     pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
+        let (username, password) = self.test_user().await;
+        dbg!(username.clone());
+        dbg!(password.clone());
         reqwest::Client::new()
             .post(&format!(
                 "http://{}:{}/newsletters",
                 &self.configuration.application.host, &self.configuration.application.port
             ))
-            .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
+            // .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
+            .basic_auth(username, Some(password))
             .json(&body)
             .send()
             .await
             .expect("Failed to execute request.")
+    }
+
+    pub async fn test_user(&self) -> (String, String) {
+        let sql = "SELECT username, password from users LIMIT 1";
+
+        let mut res = self.database.client.query(sql).await.unwrap().check().expect("Failed to get test user.");
+        let username: Option<String> = res.take((0, "username")).unwrap();
+        let password: Option<String> = res.take((0, "password")).unwrap();
+
+        (username.unwrap(), password.unwrap())
     }
 }
 
@@ -119,10 +134,23 @@ pub async fn spawn_app() -> TestApp {
 
     let _ = tokio::spawn(application.run_until_stopped());
 
-    TestApp {
+    let test_app = TestApp {
         configuration,
         email_server,
         database,
-    }
+    };
+
+    add_test_user(&test_app.database.client).await;
+    test_app
 }
 // endregion: -- spawn_app
+
+async fn add_test_user(conn: &Surreal<Client>) {
+    let sql = format!("INSERT INTO users (id, username, password) VALUES ({}, '{}', '{}')",
+        Thing::from(("users".to_string(), Uuid::new_v4().to_string())),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+    );
+
+    conn.query(sql).await.unwrap().check().expect("Failed to add test user.");
+}

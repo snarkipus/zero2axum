@@ -53,7 +53,7 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
     });
 
     let response = app.post_newsletters(newsletter_request_body).await;
-
+    
     // Assert
     assert_eq!(response.status().as_u16(), 200);
 }

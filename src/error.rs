@@ -142,6 +142,12 @@ pub enum PublishError {
     UnexpectedError(#[from] color_eyre::eyre::Error),
 }
 
+impl From<surrealdb::Error> for PublishError {
+    fn from(error: surrealdb::Error) -> Self {
+        Self::UnexpectedError(error.into())
+    }
+}
+
 impl std::fmt::Debug for PublishError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
