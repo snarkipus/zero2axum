@@ -1,5 +1,4 @@
 use crate::{
-    configuration::Settings,
     db::{Database, Transaction},
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailClient,
@@ -59,27 +58,28 @@ fn generate_subscription_token() -> String {
 #[debug_handler(state = AppState)]
 #[tracing::instrument(
     name = "Adding a new subscriber.",
-    skip(data, configuration, email_client, base_url, database),
+    skip(data, email_client, base_url, database),
     fields(
-        request_id = %uuid::Uuid::new_v4(),
         subscriber_email = %data.email,
         subscriber_name = %data.name,
-        db_name = %configuration.database.database_name
     )
 )]
 pub async fn handler_subscribe(
-    State(configuration): State<Settings>,
     State(email_client): State<Arc<EmailClient>>,
     State(base_url): State<ApplicationBaseUrl>,
     State(database): State<Database>,
     Form(data): Form<FormData>,
 ) -> Result<Response, SubscribeError> {
-    let transaction = Transaction::begin(&database.client).await?;
-    let conn = transaction.conn;
     let new_subscriber: NewSubscriber = Form(data)
         .0
         .try_into()
         .map_err(SubscribeError::ValidationError)?;
+
+    let transaction = Transaction::begin(&database.client)
+        .await
+        .context("Failed to begin SurrealDB Transaction")?;
+
+    let conn = transaction.conn;
 
     let subscriber_id = insert_subscriber(&new_subscriber, conn)
         .await

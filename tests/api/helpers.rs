@@ -19,6 +19,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
         let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
         init_subscriber(subscriber);
     }
+    color_eyre::install().expect("Failed to install `color_eyre`");
 });
 // endregion: -- conditional tracing for tests
 

@@ -29,6 +29,10 @@ pub struct Content {
 }
 
 #[debug_handler(state = AppState)]
+#[tracing::instrument(
+    name = "Publishing a newsletter",
+    skip(database, email_client, body),
+)]
 pub async fn publish_newsletter(
     State(database): State<Database>,
     State(email_client): State<Arc<EmailClient>>,
@@ -47,7 +51,7 @@ pub async fn publish_newsletter(
                     )
                     .await
                     .wrap_err_with(|| {
-                        format!("Failed to send newsletter to {}", subscriber.email)
+                        color_eyre::eyre::eyre!("Failed to send newsletter to {}", subscriber.email)
                     })?;
             }
             Err(e) => {
@@ -85,7 +89,7 @@ async fn get_confirmed_subscribers(
         .into_iter()
         .map(|r| match SubscriberEmail::parse(r.email) {
             Ok(email) => Ok(ConfirmedSubscriber { email }),
-            Err(e) => Err(color_eyre::Report::msg(format!("Failed to parse {}", e))),
+            Err(e) => Err(color_eyre::eyre::eyre!(format!("Failed to parse {}", e))),
         })
         .collect();
 

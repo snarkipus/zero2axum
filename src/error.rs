@@ -2,12 +2,12 @@ use axum::response::{IntoResponse, Response};
 use hyper::StatusCode;
 
 // region: -- SubscribeError
-#[derive(strum_macros::AsRefStr, thiserror::Error)]
+#[derive(thiserror::Error)]
 pub enum SubscribeError {
     #[error("{0}")]
     ValidationError(String),
     #[error(transparent)]
-    UnexpectedError(#[from] color_eyre::Report),
+    UnexpectedError(#[from] color_eyre::eyre::Error),
 }
 
 impl From<surrealdb::Error> for SubscribeError {
@@ -24,24 +24,21 @@ impl std::fmt::Debug for SubscribeError {
 
 impl IntoResponse for SubscribeError {
     fn into_response(self) -> Response {
-        let mut response = match self {
+        match self {
             SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST.into_response(),
             SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        };
-        response.extensions_mut().insert(self);
-
-        response
+        }
     }
 }
 // endregion: SubscribeError
 
 // region: -- ConfrimationError
-#[derive(strum_macros::AsRefStr, thiserror::Error)]
+#[derive(thiserror::Error)]
 pub enum ConfirmationError {
     #[error("There is no subscriber associated with the provided token.")]
     UnknownToken,
     #[error(transparent)]
-    UnexpectedError(#[from] color_eyre::Report),
+    UnexpectedError(#[from] color_eyre::eyre::Error),
 }
 
 impl std::fmt::Debug for ConfirmationError {
@@ -58,15 +55,12 @@ impl From<surrealdb::Error> for ConfirmationError {
 
 impl IntoResponse for ConfirmationError {
     fn into_response(self) -> Response {
-        let mut response = match self {
+        match self {
             ConfirmationError::UnknownToken => StatusCode::UNAUTHORIZED.into_response(),
             ConfirmationError::UnexpectedError(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
-        };
-        response.extensions_mut().insert(self);
-
-        response
+        }
     }
 }
 // endregion: ConfirmationError
@@ -109,7 +103,7 @@ impl std::fmt::Debug for TransactionError {
 // endregion: TransactionError
 
 // region: -- StoreTokenError
-pub struct StoreTokenError(pub surrealdb::Error);
+pub struct StoreTokenError(surrealdb::Error);
 
 impl From<surrealdb::Error> for StoreTokenError {
     fn from(error: surrealdb::Error) -> Self {
@@ -143,23 +137,20 @@ impl std::fmt::Display for StoreTokenError {
 #[derive(strum_macros::AsRefStr, thiserror::Error)]
 pub enum PublishError {
     #[error(transparent)]
-    UnexpectedError(#[from] color_eyre::Report),
+    UnexpectedError(#[from] color_eyre::eyre::Error),
 }
 
 impl std::fmt::Debug for PublishError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        crate::error::error_chain_fmt(self, f)
+        error_chain_fmt(self, f)
     }
 }
 
 impl IntoResponse for PublishError {
     fn into_response(self) -> Response {
-        let mut response = match self {
+        match self {
             PublishError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        };
-        response.extensions_mut().insert(self);
-
-        response
+        }
     }
 }
 // endregion: Publish Error

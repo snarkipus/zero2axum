@@ -1,23 +1,17 @@
 use axum::extract::FromRef;
-use axum::http::{Method, Uri};
-use axum::middleware;
-use axum::response::{IntoResponse, Response};
 use axum::{
     routing::{get, post, IntoMakeService},
     Router, Server,
 };
 use color_eyre::Result;
-
 use color_eyre::eyre::Context;
-use hyper::StatusCode;
 use hyper::{server::conn::AddrIncoming, Body};
-use serde_json::json;
 use std::{net::TcpListener, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::error::{ConfirmationError, PublishError, SubscribeError};
+
 use crate::{
     configuration::Settings, db::Database, email_client::EmailClient, routes,
     routes::handler_confirm,
@@ -136,7 +130,6 @@ pub async fn run(
         .route("/subscribe", post(routes::handler_subscribe))
         .route("/subscribe/confirm", get(handler_confirm))
         .route("/newsletters", post(routes::publish_newsletter))
-        .layer(middleware::map_response(main_response_mapper))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
                 let uuid = Uuid::new_v4();
@@ -156,83 +149,4 @@ pub async fn run(
         })
         .serve(app.into_make_service());
     Ok(server)
-}
-
-#[tracing::instrument(
-    name = "Main Response Mapper",
-    skip(uri, req_method, res),
-    fields(
-        uri = %uri,
-        method = %req_method,
-    )
-)]
-async fn main_response_mapper(uri: Uri, req_method: Method, res: Response) -> Response {
-    let uuid = Uuid::new_v4();
-
-    // Subscribe Response Error
-    let res_err = res.extensions().get::<SubscribeError>();
-    if let Some(res_err) = res_err {
-        tracing::error!("Service Error: {:?}", res_err);
-        match res_err {
-            SubscribeError::UnexpectedError(_) => {
-                return client_response_builder(StatusCode::INTERNAL_SERVER_ERROR, uuid)
-            }
-            SubscribeError::ValidationError(_) => {
-                return client_response_builder(StatusCode::BAD_REQUEST, uuid)
-            }
-        }
-    }
-
-    // Subscribe Confirmation Response Error
-    let res_err = res.extensions().get::<ConfirmationError>();
-    if let Some(res_err) = res_err {
-        tracing::error!("Service Error: {:?}", res_err);
-        match res_err {
-            ConfirmationError::UnexpectedError(_) => {
-                return client_response_builder(StatusCode::INTERNAL_SERVER_ERROR, uuid)
-            }
-            ConfirmationError::UnknownToken => {
-                return client_response_builder(StatusCode::UNAUTHORIZED, uuid)
-            }
-        }
-    }
-
-    // Publish Response Error
-    let res_err = res.extensions().get::<PublishError>();
-    if let Some(res_err) = res_err {
-        tracing::error!("Service Error: {:?}", res_err);
-        match res_err {
-            PublishError::UnexpectedError(_) => {
-                return client_response_builder(StatusCode::INTERNAL_SERVER_ERROR, uuid)
-            }
-        }
-    }
-
-    // region: Client Error Response Builder
-    #[tracing::instrument(
-        name = "Client Error Response Builder",
-        skip(status_code, uuid),
-        fields(
-            status = %status_code,
-            id = %uuid,
-        )
-    )]
-    fn client_response_builder(status_code: StatusCode, uuid: Uuid) -> Response {
-        let client_response_body = json!({
-            "error": {
-                "type:": status_code.as_str(),
-                "request_id": uuid.to_string(),
-            }
-        });
-        tracing::error!("Client Error: {:?}", client_response_body);
-        let res = Response::builder()
-            .status(status_code)
-            .header("Content-Type", "application/json")
-            .body(Body::from(client_response_body.to_string()))
-            .unwrap();
-        res.into_response()
-    }
-    // endregion: -- Client Error Response Builder
-
-    res
 }

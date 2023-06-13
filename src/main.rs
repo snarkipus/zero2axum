@@ -9,10 +9,10 @@ use zero2axum::{
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
-    color_eyre::install()?;
-
     let subscriber = get_subscriber("zero2axum".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
+    color_eyre::install().expect("Failed to install `color_eyre`");
+
     // init_sentry();
     // init_honeycomb();
 
