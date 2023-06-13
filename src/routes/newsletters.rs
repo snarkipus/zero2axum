@@ -11,6 +11,7 @@ use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 use std::sync::Arc;
 use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
+use sha3::Digest;
 
 use crate::{
     db::Database, domain::SubscriberEmail, email_client::EmailClient, error::PublishError,
@@ -32,7 +33,12 @@ pub struct Content {
 #[debug_handler(state = AppState)]
 #[tracing::instrument(
     name = "Publishing a newsletter",
-    skip(database, email_client, headers, body)
+    skip(database, email_client, headers, body),
+    fields(
+        username = tracing::field::Empty,
+        user_id = tracing::field::Empty,
+    )
+
 )]
 pub async fn publish_newsletter(
     State(database): State<Database>,
@@ -80,6 +86,7 @@ pub struct Credentials {
     password: Secret<String>,
 }
 
+#[tracing::instrument(name = "Validating credentials", skip(headers))]
 fn basic_authentication(headers: &HeaderMap) -> color_eyre::Result<Credentials> {
     let header_value = headers
         .get("Authorization")
@@ -113,7 +120,6 @@ fn basic_authentication(headers: &HeaderMap) -> color_eyre::Result<Credentials> 
     Ok(Credentials {
         username,
         password: Secret::new(password),
-        // password,
     })
 }
 
@@ -147,19 +153,29 @@ async fn get_confirmed_subscribers(
     Ok(confirmed_subscribers)
 }
 
+#[tracing::instrument(name = "Validating credentials", skip(credentials, conn))]
 async fn validate_credentials(
     credentials: Credentials,
     conn: &Surreal<Client>,
 ) -> Result<Thing, PublishError> {
-    let sql = "SELECT id FROM users WHERE username = $username and password = $password LIMIT 1";
+    let password_hash = sha3::Sha3_256::digest(
+        credentials
+            .password
+            .expose_secret()
+            .as_bytes(),
+    );
+
+    let password_hash = format!("{:x}", password_hash);
+    
+    let sql = "SELECT id FROM users WHERE username = $username and password_hash = $password_hash LIMIT 1";
 
     let mut res = conn
         .query(sql)
         .bind(("username", credentials.username))
-        .bind(("password", credentials.password.expose_secret()))
+        .bind(("password_hash", password_hash))
         .await?
         .check()?;
-
+    dbg!(&res);
     let user_id: Option<Thing> = res.take((0, "id")).context("Invalid credentials")?;
 
     if let Some(user_id) = user_id {

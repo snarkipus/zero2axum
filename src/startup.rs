@@ -27,6 +27,14 @@ pub struct Application {
 
 impl Application {
     // region: -- Application Builder
+    #[tracing::instrument(
+        name = "Building Application",
+        skip(configuration, database),
+        fields(
+            host = %configuration.application.host,
+            port = %configuration.application.port,
+        )
+    )]
     pub async fn build(configuration: Settings, database: Database) -> Result<Self> {
         let sender_email = configuration
             .email_client

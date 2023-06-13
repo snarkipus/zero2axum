@@ -41,6 +41,7 @@ anyhow = "1.0.71"
 futures-core = "0.3.28"
 thiserror = "1.0.40"
 base64 = "0.21.2"
+sha3 = "0.10.8"
 
 [dependencies.reqwest]
 version = "0.11.16"

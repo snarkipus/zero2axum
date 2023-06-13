@@ -791,3 +791,7 @@ flowchart TB
   end
   block1 --> block2
 ```
+No surprises here - straightforward chapter. 
+
+## Chapter 10: Securing our API
+

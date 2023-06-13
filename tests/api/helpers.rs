@@ -1,12 +1,13 @@
 use once_cell::sync::Lazy;
-use surrealdb::{sql::Thing, Surreal, engine::remote::ws::Client};
+use sha3::Digest;
+use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2axum::{
     configuration::{get_configuration, Settings},
     db::Database,
     startup::Application,
-    telemetry::{get_subscriber, init_subscriber}
+    telemetry::{get_subscriber, init_subscriber},
 };
 
 // region: -- conditional tracing for tests
@@ -35,6 +36,7 @@ pub struct TestApp {
     pub configuration: Settings,
     pub email_server: MockServer,
     pub database: Database,
+    pub test_user: TestUser,
 }
 
 impl TestApp {
@@ -76,30 +78,16 @@ impl TestApp {
     }
 
     pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
-        let (username, password) = self.test_user().await;
-        dbg!(username.clone());
-        dbg!(password.clone());
         reqwest::Client::new()
             .post(&format!(
                 "http://{}:{}/newsletters",
                 &self.configuration.application.host, &self.configuration.application.port
             ))
-            // .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
-            .basic_auth(username, Some(password))
+            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&body)
             .send()
             .await
             .expect("Failed to execute request.")
-    }
-
-    pub async fn test_user(&self) -> (String, String) {
-        let sql = "SELECT username, password from users LIMIT 1";
-
-        let mut res = self.database.client.query(sql).await.unwrap().check().expect("Failed to get test user.");
-        let username: Option<String> = res.take((0, "username")).unwrap();
-        let password: Option<String> = res.take((0, "password")).unwrap();
-
-        (username.unwrap(), password.unwrap())
     }
 }
 
@@ -138,19 +126,42 @@ pub async fn spawn_app() -> TestApp {
         configuration,
         email_server,
         database,
+        test_user: TestUser::generate(),
     };
-
-    add_test_user(&test_app.database.client).await;
+    test_app.test_user.store(&test_app.database.client).await;
+    // add_test_user(&test_app.database.client).await;
     test_app
 }
 // endregion: -- spawn_app
 
-async fn add_test_user(conn: &Surreal<Client>) {
-    let sql = format!("INSERT INTO users (id, username, password) VALUES ({}, '{}', '{}')",
-        Thing::from(("users".to_string(), Uuid::new_v4().to_string())),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-    );
+#[derive(Debug)]
+pub struct TestUser {
+    pub user_id: Thing,
+    pub username: String,
+    pub password: String,
+}
 
-    conn.query(sql).await.unwrap().check().expect("Failed to add test user.");
+impl TestUser {
+    pub fn generate() -> Self {
+        Self {
+            user_id: Thing::from(("users".to_string(), Uuid::new_v4().to_string())),
+            username: Uuid::new_v4().to_string(),
+            password: Uuid::new_v4().to_string(),
+        }
+    }
+
+    #[tracing::instrument(name = "Store test user in database", skip(conn))]
+    async fn store(&self, conn: &Surreal<Client>) {
+        let password_hash = sha3::Sha3_256::digest(self.password.as_bytes());
+        let sql = format!(
+            "INSERT INTO users (id, username, password_hash) VALUES ({}, '{}', '{:x}')",
+            self.user_id, self.username, password_hash,
+        );
+
+        conn.query(sql)
+            .await
+            .unwrap()
+            .check()
+            .expect("Failed to store test user.");
+    }
 }
