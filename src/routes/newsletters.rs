@@ -1,3 +1,4 @@
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{
     extract::State,
     response::{IntoResponse, Response},
@@ -11,7 +12,6 @@ use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 use std::sync::Arc;
 use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
-use sha3::Digest;
 
 use crate::{
     db::Database, domain::SubscriberEmail, email_client::EmailClient, error::PublishError,
@@ -30,6 +30,7 @@ pub struct Content {
     html: String,
 }
 
+// region: -- /newsletters handler
 #[debug_handler(state = AppState)]
 #[tracing::instrument(
     name = "Publishing a newsletter",
@@ -79,6 +80,7 @@ pub async fn publish_newsletter(
     }
     Ok(StatusCode::OK.into_response())
 }
+// endregion: -- /newsletters handler
 
 #[derive(Deserialize)]
 pub struct Credentials {
@@ -86,6 +88,7 @@ pub struct Credentials {
     password: Secret<String>,
 }
 
+// region: -- Basic Authentication
 #[tracing::instrument(name = "Validating credentials", skip(headers))]
 fn basic_authentication(headers: &HeaderMap) -> color_eyre::Result<Credentials> {
     let header_value = headers
@@ -122,12 +125,14 @@ fn basic_authentication(headers: &HeaderMap) -> color_eyre::Result<Credentials> 
         password: Secret::new(password),
     })
 }
+// endregion: -- Basic Authentication
 
 #[derive(Deserialize)]
 struct ConfirmedSubscriber {
     email: SubscriberEmail,
 }
 
+// region: -- Get Confirmed Subscribers
 #[tracing::instrument(name = "Getting Confirmed Subscribers", skip(conn))]
 async fn get_confirmed_subscribers(
     conn: Surreal<Client>,
@@ -152,37 +157,50 @@ async fn get_confirmed_subscribers(
 
     Ok(confirmed_subscribers)
 }
+// endregion: -- Get Confirmed Subscribers
 
-#[tracing::instrument(name = "Validating credentials", skip(credentials, conn))]
+// region: -- Validate Credentials
+// #[tracing::instrument(name = "Validating credentials", skip(credentials, conn))]
 async fn validate_credentials(
     credentials: Credentials,
     conn: &Surreal<Client>,
 ) -> Result<Thing, PublishError> {
-    let password_hash = sha3::Sha3_256::digest(
-        credentials
-            .password
-            .expose_secret()
-            .as_bytes(),
-    );
-
-    let password_hash = format!("{:x}", password_hash);
-    
-    let sql = "SELECT id FROM users WHERE username = $username and password_hash = $password_hash LIMIT 1";
+    let sql = "SELECT id, password_hash FROM users WHERE username = $username";
 
     let mut res = conn
         .query(sql)
         .bind(("username", credentials.username))
-        .bind(("password_hash", password_hash))
-        .await?
-        .check()?;
-    dbg!(&res);
-    let user_id: Option<Thing> = res.take((0, "id")).context("Invalid credentials")?;
+        .await
+        .context("Failed to perform a query to retrieve stored credentials")?
+        .check()
+        .map_err(|e| PublishError::UnexpectedError(color_eyre::eyre::eyre!(e)))?;
 
-    if let Some(user_id) = user_id {
-        Ok(user_id)
-    } else {
-        Err(PublishError::AuthError(color_eyre::eyre::eyre!(
-            "Invalid credentials"
-        )))
-    }
+    let user_id: Option<Thing> = res.take((0, "id")).context("User ID not found")?;
+    let expected_password_hash: Option<String> = res
+        .take((0, "password_hash"))
+        .context("Password Hash not found")?;
+
+    let (expected_password_hash, user_id) = match (expected_password_hash, user_id) {
+        (Some(expected_password_hash), Some(user_id)) => (expected_password_hash, user_id),
+        _ => {
+            return Err(PublishError::AuthError(color_eyre::eyre::eyre!(
+                "Unknown username"
+            )))
+        }
+    };
+
+    let expected_password_hash = PasswordHash::new(&expected_password_hash)
+        .context("Failed to parse hash in PHC string format.")
+        .map_err(PublishError::UnexpectedError)?;
+
+    Argon2::default()
+        .verify_password(
+            credentials.password.expose_secret().as_bytes(),
+            &expected_password_hash,
+        )
+        .context("Failed to verify password")
+        .map_err(PublishError::UnexpectedError)?;
+
+    Ok(user_id)
 }
+// endregion: -- Validate Credentials

@@ -1,0 +1,1 @@
+DEFINE FIELD salt ON users TYPE string ASSERT $value != NONE;

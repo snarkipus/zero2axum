@@ -137,7 +137,7 @@ impl std::fmt::Display for StoreTokenError {
 #[derive(thiserror::Error)]
 pub enum PublishError {
     #[error("Authentication failed.")]
-    AuthError(#[source] color_eyre::eyre::Error),    
+    AuthError(#[source] color_eyre::eyre::Error),
     #[error(transparent)]
     UnexpectedError(#[from] color_eyre::eyre::Error),
 }

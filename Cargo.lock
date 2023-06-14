@@ -4646,6 +4646,7 @@ name = "zero2axum"
 version = "0.1.9"
 dependencies = [
  "anyhow",
+ "argon2",
  "axum",
  "axum-macros",
  "base64 0.21.2",

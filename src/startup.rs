@@ -3,14 +3,13 @@ use axum::{
     routing::{get, post, IntoMakeService},
     Router, Server,
 };
-use color_eyre::Result;
 use color_eyre::eyre::Context;
+use color_eyre::Result;
 use hyper::{server::conn::AddrIncoming, Body};
 use std::{net::TcpListener, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::warn;
 use uuid::Uuid;
-
 
 use crate::{
     configuration::Settings, db::Database, email_client::EmailClient, routes,

@@ -21,7 +21,7 @@ then
     --pull always \
     -p "${DB_PORT}":8000 \
     -d \
-    surrealdb/surrealdb:nightly start \
+    surrealdb/surrealdb:latest start \
       --log trace \
       --user "${DB_USER}" \
       --pass "${DB_PASSWORD}" \
@@ -38,11 +38,13 @@ done
 DATABASE_URL=http://${DB_HOST}:${DB_PORT}
 export DATABASE_URL
 
-surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/script_migration.surql
-surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/add_status_to_subscriptions.surql
-surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/make_status_not_null_in_subscriptions.surql
-surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/create_subscription_tokens_table.surql
-surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/create_users_table.surql
-surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/rename_password_column.surql
+surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101701_script_migration.surql
+surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101702_add_status_to_subscriptions.surql
+surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101703_make_status_not_null_in_subscriptions.surql
+surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101704_create_subscription_tokens_table.surql
+surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101705_create_users_table.surql
+surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101706_rename_password_column.surql
+# surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101707_add_salt_to_users.surql
+# surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101708_remove_salt_from_users.surql
 
 >&2 echo "SurrealDB migrations applied! Let's Go!!!!"
