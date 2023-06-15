@@ -7,7 +7,7 @@ use axum_macros::debug_handler;
 use color_eyre::eyre::Context;
 use surrealdb::sql::Thing;
 
-// use crate::error::Result;
+#[allow(unused_imports)]
 use crate::{db::Database, error::ConfirmationError, startup::AppState};
 
 #[derive(serde::Deserialize)]

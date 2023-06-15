@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use crate::{
     db::{Database, Transaction},
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},

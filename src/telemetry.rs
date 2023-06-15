@@ -3,6 +3,18 @@ use tracing::Subscriber;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
 use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt, EnvFilter, Registry};
+use tokio::task::JoinHandle;
+
+// region: -- Spawn Blocking w/Tracing
+pub fn spawn_block_with_tracing<F, R>(f: F) -> JoinHandle<R>
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let current_span = tracing::Span::current();
+    tokio::task::spawn_blocking(move || current_span.in_scope(f))
+}
+// region: -- Spawn Blocking w/Tracing
 
 // region: -- Tracing: Initialize
 pub fn get_subscriber<Sink>(

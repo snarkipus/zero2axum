@@ -13,9 +13,10 @@ use serde::Deserialize;
 use std::sync::Arc;
 use surrealdb::{engine::remote::ws::Client, sql::Thing, Surreal};
 
+#[allow(unused_imports)]
 use crate::{
     db::Database, domain::SubscriberEmail, email_client::EmailClient, error::PublishError,
-    startup::AppState,
+    startup::AppState, telemetry::spawn_block_with_tracing,
 };
 
 #[derive(Deserialize)]
@@ -48,7 +49,6 @@ pub async fn publish_newsletter(
     body: Json<BodyData>,
 ) -> Result<Response, PublishError> {
     let credentials = basic_authentication(&headers).map_err(PublishError::AuthError)?;
-
     tracing::Span::current().record("username", &tracing::field::display(&credentials.username));
     let user_id = validate_credentials(credentials, &database.client).await?;
     tracing::Span::current().record("user_id", &tracing::field::display(&user_id.id));
@@ -89,7 +89,7 @@ pub struct Credentials {
 }
 
 // region: -- Basic Authentication
-#[tracing::instrument(name = "Validating credentials", skip(headers))]
+#[tracing::instrument(name = "Basic Authentication", skip(headers))]
 fn basic_authentication(headers: &HeaderMap) -> color_eyre::Result<Credentials> {
     let header_value = headers
         .get("Authorization")
@@ -160,47 +160,87 @@ async fn get_confirmed_subscribers(
 // endregion: -- Get Confirmed Subscribers
 
 // region: -- Validate Credentials
-// #[tracing::instrument(name = "Validating credentials", skip(credentials, conn))]
+#[tracing::instrument(name = "Validating credentials", skip(credentials, conn))]
 async fn validate_credentials(
     credentials: Credentials,
     conn: &Surreal<Client>,
 ) -> Result<Thing, PublishError> {
-    let sql = "SELECT id, password_hash FROM users WHERE username = $username";
+    let mut user_id = None;
+    let mut expected_password_hash = Secret::new(
+        "$argon2id$v=19$m=15000,t=2,p=1$\
+        gZiV/M1gPc22ElAH/Jh1Hw$\
+        CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno"
+            .to_string(),
+    );
 
-    let mut res = conn
-        .query(sql)
-        .bind(("username", credentials.username))
-        .await
-        .context("Failed to perform a query to retrieve stored credentials")?
-        .check()
-        .map_err(|e| PublishError::UnexpectedError(color_eyre::eyre::eyre!(e)))?;
+    if let Some((stored_user_id, stored_password_hash)) =
+        get_stored_credentials(&credentials.username, conn)
+            .await
+            .map_err(PublishError::UnexpectedError)?
+    {
+        user_id = Some(stored_user_id);
+        expected_password_hash = stored_password_hash;
+    }
 
-    let user_id: Option<Thing> = res.take((0, "id")).context("User ID not found")?;
-    let expected_password_hash: Option<String> = res
-        .take((0, "password_hash"))
-        .context("Password Hash not found")?;
+    spawn_block_with_tracing(move || {
+        verify_password_hash(expected_password_hash, credentials.password)
+    })
+    .await
+    .context("Failed to spawn blocking task")
+    .map_err(PublishError::UnexpectedError)??;
 
-    let (expected_password_hash, user_id) = match (expected_password_hash, user_id) {
-        (Some(expected_password_hash), Some(user_id)) => (expected_password_hash, user_id),
-        _ => {
-            return Err(PublishError::AuthError(color_eyre::eyre::eyre!(
-                "Unknown username"
-            )))
-        }
-    };
+    user_id.ok_or_else(|| PublishError::AuthError(color_eyre::eyre::eyre!("Unknown username.")))
+}
+// endregion: -- Validate Credentials
 
-    let expected_password_hash = PasswordHash::new(&expected_password_hash)
+// region: -- Verify Password Hash
+#[tracing::instrument(
+    name = "Verify password hash",
+    skip(expected_password_hash, password_candidate)
+)]
+fn verify_password_hash(
+    expected_password_hash: Secret<String>,
+    password_candidate: Secret<String>,
+) -> Result<(), PublishError> {
+    let expected_password_hash = PasswordHash::new(expected_password_hash.expose_secret())
         .context("Failed to parse hash in PHC string format.")
         .map_err(PublishError::UnexpectedError)?;
 
     Argon2::default()
         .verify_password(
-            credentials.password.expose_secret().as_bytes(),
+            password_candidate.expose_secret().as_bytes(),
             &expected_password_hash,
         )
-        .context("Failed to verify password")
-        .map_err(PublishError::UnexpectedError)?;
-
-    Ok(user_id)
+        .context("Invalid password.")
+        .map_err(PublishError::AuthError)
 }
-// endregion: -- Validate Credentials
+// endregion: -- Verify Password Hash
+
+// region: -- Get Stored Credentials
+#[derive(Debug, Deserialize)]
+struct StoredCredentials {
+    id: Thing,
+    password_hash: String,
+}
+
+#[tracing::instrument(name = "Get stored credentials", skip(username, conn))]
+async fn get_stored_credentials(
+    username: &str,
+    conn: &Surreal<Client>,
+) -> color_eyre::Result<Option<(Thing, Secret<String>)>> {
+    let sql = "SELECT id, password_hash FROM users WHERE username = $username";
+
+    let mut res = conn
+        .query(sql)
+        .bind(("username", username))
+        .await
+        .context("Failed to perform a query to retrieve stored credentials")?
+        .check()
+        .map_err(|e| PublishError::UnexpectedError(color_eyre::eyre::eyre!(e)))?;
+
+    let creds: Option<StoredCredentials> = res
+        .take(0)
+        .map_err(|e| PublishError::UnexpectedError(color_eyre::eyre::eyre!(e)))?;
+
+    Ok(creds.map(|c| (c.id, Secret::new(c.password_hash))))
+}
