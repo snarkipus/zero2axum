@@ -1,6 +1,41 @@
 use axum::response::{IntoResponse, Response};
 use hyper::StatusCode;
 
+// region: -- LoginError
+#[derive(thiserror::Error)]
+pub enum LoginError {
+    #[error("Authentication Failed.")]
+    AuthError(#[source] color_eyre::eyre::Error),
+    #[error("Something went wrong.")]
+    UnexpectedError(#[from] color_eyre::eyre::Error),
+}
+
+impl std::fmt::Debug for LoginError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl IntoResponse for LoginError {
+    fn into_response(self) -> Response {
+        match self {
+            LoginError::AuthError(_) => StatusCode::UNAUTHORIZED.into_response(),
+            LoginError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
+    }
+}
+// endregion: LoginError
+
+// region: -- Authentication Error
+#[derive(thiserror::Error, Debug)]
+pub enum AuthError {
+    #[error("Invalid Credentials.")]
+    InvalidCredentials(#[source] color_eyre::eyre::Error),
+    #[error(transparent)]
+    UnexpectedError(#[from] color_eyre::eyre::Error),
+}
+// endregion: Authentication Error
+
 // region: -- SubscribeError
 #[derive(thiserror::Error)]
 pub enum SubscribeError {

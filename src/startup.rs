@@ -132,7 +132,9 @@ pub async fn run(
     };
 
     let app = Router::new()
-        .route("/", get(routes::handler_hello))
+        .route("/", get(routes::home))
+        .route("/login", get(routes::login_form))
+        .route("/login", post(routes::login))
         .route("/health_check", get(routes::handler_health_check))
         .route("/subscribe", post(routes::handler_subscribe))
         .route("/subscribe/confirm", get(handler_confirm))
