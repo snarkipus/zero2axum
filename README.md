@@ -36,7 +36,7 @@
 - [x] Chapter 6: Reject Invalid Subscribers #1 ([v0.1.6](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.6))
 - [x] Chapter 7: Reject Invalid Subscribers #2 ([v0.1.7](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.7))
 - [x] Chapter 8: Error Handling([v0.1.8](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.8))
-- [ ] Chapter 9: Naive Newsletter Delivery
+- [x] Chapter 9: Naive Newsletter Delivery([v0.1.9](https://github.com/snarkipus/zero2axum/releases/tag/v0.1.9))
 - [ ] Chapter 10: Securing our API
 - [ ] Chapter 11: Fault Tolerant Workflows
 
@@ -143,32 +143,31 @@ default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> SELECT * FROM subscriptions;
   - No offline compile-time verification
   - No 'lazy' connection to SurrealDB (would require refactoring initialization code to endpoint handler - doable, but dumb)
 
-- ok, so I'm going to have to refactor this stupid thing - it totally breaks the flow of the book if I don't
-  - [x] instead of connection pool, pass configurations
-  - [x] initialize database connection (post init.sh migration) at the handler
-  - [x] major refactor of the tests to create configs/migrations within the tests
+- Ok, so I'm going to have to refactor this stupid thing - it totally breaks the flow of the book if I don't
+  - [x] Instead of a connection pool, pass configurations
+  - [x] Initialize database connection (post init.sh migration) at the handler
+  - [x] Major refactor of the tests to create configs/migrations within the tests
 
 ### Deployment Configuration
 - zero2axum:
   - ~~Dockerfile deployment via `spec.yaml` to Digital Ocean Apps~~
-    - turns out that managing `git-crypt` secrets with Dockerfile deployment and DO Apps Framework sucks (or at least I couldn't figure it out)
-  - switched to Fly.io:
-    - [x] Local deployment via `flyctl deploy` after using `fly launch` to generate the `fly.toml` config file worked painslessly (and without wrestling with git-crypt)
+    - Turns out that managing `git-crypt` secrets with Dockerfile deployment and DO Apps Framework sucks (or at least I couldn't figure it out)
+  - Switched to Fly.io:
+    - [x] Local deployment via `flyctl deploy` after using `fly launch` to generate the `fly.toml` config file worked painlessly (and without wrestling with git-crypt)
     - [x] [Fly.io CD Setup](https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/)
 - SurrealDB (5.4.4 Connecting To Digital Ocean’s Postgres Instance): 
   - [x] ~~VPS w/Docker deployment to Digital Ocean Droplet~~
-  - this got needlessly complicated and non-automated (domain names, etc.) - might as well just host my own
+  - This got needlessly complicated and non-automated (domain names, etc.) - I might as well just host my own
   - [x] Host SurrealDB on personal VPS (in my case, k3s cluster running on Hetzner)
   - [x] SSL does horrible, terrible things and doesn't work [Bug: 1929](https://github.com/surrealdb/surrealdb/issues/1929) ([Fix: PR#1960](https://github.com/surrealdb/surrealdb/pull/1960))
   - [x] Refactor 'production' environment to reflect `Wss` vs. `Ws` connection and new database endpoint
-  - [ ] noticed that the initial schemaful migration run in the init script for local dev isn't being run for prod, so there are no unique constraints ... this would have broken with Postgres ... need to figure this out
-  - for now, just doing a manual migration using the surreal cli via:
+  - [ ] Noticed that the initial schemaful migration run in the init script for local dev isn't being run for prod, so there are no unique constraints ... this would have broken with Postgres ... need to figure this out
+  - For now, just doing a manual migration using the surreal cli:
     `surreal import --conn https://my.db.here -u surreal -p password --ns default --db newsletter schemas/script_migration.surql` (also requires nightly, source built surreal since ssl is broken in beta-9)
 
 ## Chapter 6
 - Type Safety: just a note, lack of `sqlx` kinda sucks ... 6.5 clearly shows the issue where a query is binding a field to a struct (instead of &str), and I know that will explode ... but it's silent without anything that guarantees type-safe queries.
-
-- pretty straight forward - only some minor errata around the `fake` crate and using `Arbitrary` ... no longer using rng as a trait, now it uses a struct - there's a link to the issue in the source
+- Pretty straightforward - only some minor errata around the `fake` crate and using `Arbitrary` ... no longer uses rng as a trait; now it uses a struct - there's a link to the issue in the source
     
 ## Chapter 7
 ### 7.2.2.2 Connection Pooling
@@ -205,13 +204,13 @@ Which one?
 wrapping the connection pool twice with Arc. This is not the case though: EmailClient has two data fields attached (base_url and sender). The first implementation allocates new memory to hold a copy of that data every time an App instance is created, while the second shares it among all App instances. That’s why we will be using the second strategy.
 
 #### NOTE:
-- axum-macros crate with `#[debug_handler]` on the route handler makes [debugging](https://docs.rs/axum-macros/latest/axum_macros/attr.debug_handler.html) A LOT easier
+- `axum-macros` crate with `#[debug_handler]` on the route handler makes [debugging](https://docs.rs/axum-macros/latest/axum_macros/attr.debug_handler.html) A LOT easier
 
-Ok, so this might be one of the bigger differences I've seen between Actix and Axum ... the sharing of State information. Where Actix allows the `app_data` to be passed atomically, Axum requires state to be packaged into a struct of some kind.
+Ok, so this might be one of the bigger differences I've seen between Actix and Axum (so far) ... the sharing of State information. Where Actix allows the `app_data` to be passed atomically, Axum requires the state to be packaged into a struct of some kind.
 
-Regardless, the naive approach of just cloning the entire structure would be "Option 1" ... so we'll have to wrap the EmailClient in an `Arc` by hand
+Regardless, the naive approach of just cloning the entire structure would be "Option 1," ... so we'll have to wrap the EmailClient in an `Arc` by hand
 
-So, for us ... we can do something like (no idea if this is write - had to derive `clone` on the whole thing which seems like it's not quite right):
+So, for us ... we can do something like this (no idea if this is correct, I had to derive `clone` on the whole thing, which seems like it's not quite right):
 
 ```rust 
 #[derive(Clone)]
@@ -220,7 +219,7 @@ pub struct AppState {
     pub email_client: Arc<EmailClient>,
 }
 ```
-Then, we can setup the `AppState` like this in the async `run()` function:
+Then, we can set up the `AppState` like this in the async `run()` function:
 ```rust
 let state = AppState {
     configuration,
@@ -239,11 +238,11 @@ Oddly, that works ... tests are all green.
 ### 7.2.3 HTTP Mocking with ~~`wiremock`~~ `mockito`
 Long story short - just use `wiremock`.
 #### Issues
-- no match trait to implement, only an `Into<Matcher>` which can return one of the `Matcher` enum types ... probably a way to do that, but beyond my skill level
-- no exposed `.with_delay()` method ... you have to use `.with_chunked_body()` and pass a closure ... and the sleep thread seems to be block in the main test thread
+- No match trait to implement, only an `Into<`Matcher>`, which can return one of the `Matcher` enum types ... probably a way to do that, but beyond my skill level
+- No exposed `.with_delay()` method ... you have to use `.with_chunked_body()` and pass a closure ... and the sleep thread seems to block in the main test thread
 
 ### 7.6 Database Stuff
-Note: ChatGPT is ***really good*** at generating ERDs from SQL using mermaid syntax
+Note: ChatGPT is ***really good*** at generating ERDs from SQL using Mermaid syntax
 
 #### 3.8.4.2.3: Initial Migration
 ##### SQL
@@ -353,7 +352,7 @@ In this diagram:
 Now, what's interesting is that in SurrealDB, the relationship between the `subscription_tokens` table and the `subscriptions` table isn't handled using a foreign key. The important fact is:
 >  each `subscription_token` is associated with exactly one `subscription`, and each `subscription` can be associated with multiple `subscription_tokens`
 
- It's probably handled using a graphy edge created by the `RELATE` statement. I'm guessing something along the lines of:
+ It's probably handled using a graph edge created by the `RELATE` statement. I'm guessing something along the lines of:
 ```sql
 RELATE subscriptions:id->create->subscriber_id:id SET subscription_token = $token;
 ```
@@ -367,17 +366,17 @@ DEFINE FIELD subscriber_id ON TABLE subscription_tokens TYPE string ASSERT $valu
 DEFINE INDEX subscriber_id on TABLE subscription_tokens COLUMNS subscriber_id UNIQUE;
 ```
 ### 7.7 Sending a Confirmation Email
-Things got a little squirly here, and in the first attempt I neglected to set the mock server's email address properly in `tests/api/helpers.rs: spawn_app()`. Not trusting mockito and struggling to debug this, I just reverted to `wiremock` for all mocking/testing. Turns out this was probably wise, since email verification depends on the `received_requests()` method from `wiremock` and this would have been some effort to do with `mockito` ... maybe just extend it? I dunno ...
+Things got a little squirrely here, and in the first attempt, I neglected to set the mock server's email address properly in `tests/api/helpers.rs: spawn_app()`. Not trusting mockito and struggling to debug this, I just reverted to `wiremock` for all mocking/testing. Turns out this was probably wise since email verification depends on the `received_requests()` method from `wiremock`, and this would have been some effort to do with `mockito` ... maybe just extend it? I dunno ...
 
 #### Detour: Refactor State Management
 
-I was lamenting that using `Extract()` state was shared as a monolith and envious of the fact that Actix had a much more elegant pattern. It turns out that Axum does as well. In fact, there's some pretty good reasons _not_ to use the `Extract()` method ... namely type safety and runtime explosions.
+I was lamenting that using `Extract()` state was shared as a monolith and envious of the fact that Actix had a much more elegant pattern. It turns out that Axum does as well. In fact, there are some pretty good reasons _not_ to use the `Extract()` method ... namely type safety and runtime explosions.
 
 - **[Axum Blog Post](https://tokio.rs/blog/2022-11-25-announcing-axum-0-6-0)**
 > Previously the recommended way to share state with handlers was to use the Extension middleware and extractor: ...<br> However this wasn't type safe, so if you forgot .layer(Extension(...)) things would compile just fine but you'd get runtime errors when calling handler ...<br>In 0.6 you can use the new State extractor which works similarly to Extension but is type safe...
 
 - **[Axum State for Reqwest Client](https://stackoverflow.com/questions/75727029/axum-state-for-reqwest-client)**<br>
-Turns out someone else tried to do this ... just need the `FromRef` trait which can be derived via macro
+It turns out someone else tried to do this ... just need the `FromRef` trait, which can be derived via macro
 
 - **[Axum Docs: axum::extract::State Substates](https://docs.rs/axum/latest/axum/extract/struct.State.html#substates)**
 
@@ -394,9 +393,9 @@ The easiest way to get it right is to pass the domain in as a configuration valu
 Let’s add a new field to ApplicationSettings: ...
 
 **TODO:** 
-- [X] FIGURE THIS OUT FOR FLY.IO - CD will be broken until this is resolved
+- [X] FIGURE THIS OUT FOR FLY.IO: CD will be broken until this is resolved
 
-- Set the production API key so that postmark will get the right header:
+- Set the production API key so that Postmark will get the correct header:
   
 `flyctl secrets set APP_EMAIL_CLIENT__AUTHORIZATION_TOKEN=API-TOKEN-GOES-HERE`
 
@@ -430,10 +429,7 @@ spec.yaml.
 
 Well, Fly.io provides a very small amount of [environment variables](https://fly.io/docs/reference/runtime-environment/#environment-variables) to the runtime. 
 
-Now, according to the [docs](https://fly.io/docs/getting-started/working-with-fly-apps/) ... 
-> When you create a Fly App, it is automatically given a fly.dev sub-domain, based on the app's name.
-
-And the apps name is available via `FLY_APP_NAME` ... which one would intuit that the `base_url` should eventually resolve to `http://${FLY_APP_NAME}`.
+Now, according to the [docs](https://fly.io/docs/getting-started/working-with-fly-apps/) ... And the app's name is available via `FLY_APP_NAME` ... which one would intuit that the `base_url` should eventually resolve to `http://${FLY_APP_NAME}`.
 
 I'm pretty sure that the following code is where the change needs to happen (configuration.rs):
 ```rust
@@ -465,7 +461,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
 ```
 
 ## DETOUR: [Surreal Thing Notes](SurrealStuff)
-Pretty massive detour here to move away from pure `uuid` based ids, and to `Thing` which is unique to SurrealDB. Not a huge fan, but at least all the test are passing. Which brings us to ...
+Pretty massive detour here to move away from pure uuid-based ids and to `Thing`, which is unique to SurrealDB. Not a huge fan, but at least all the tests are passing. This brings us to ...
 
 ---
 
@@ -474,9 +470,9 @@ Well, this would be yet another place where not using Postgres or sqlx makes thi
 
 SurrealDB does have a concept of [transaction](https://surrealdb.com/docs/surrealql/transactions), but any pooling will have to be done the hard way.
 
-I dunno ... maybe we can do something clever by making a general purpose DB adapter thing with some baked in smarts. Maybe add a simple transaction manager impl to the a DB object ...
+I dunno ... maybe we can do something clever by making a general-purpose DB adapter thing with some baked-in smarts. Maybe add a simple transaction manager impl to the DB object ...
 
-So, it's interesting working through this as a novice database guy ... so much emphasis in Postgres is placed on the connection. SurrealDB, using Websockets, doesn't have to deal with any of the pooling. It wouild seem that the sqlx! transaction manager grabs a connection from the pool and holds it open while it fills up a queue with pending transactions, then commits them once you pull the trigger. My naive implementation just queues up a bunch of surql strings (maybe even validated?) and spits them out as a transaction. ~~I may add a method to easily just execute it.~~ After discussing with ChatGPT, changes were made and things were done. 
+So, it's interesting working through this as a novice database guy ... so much emphasis in Postgres is placed on the connection. SurrealDB, using Websockets, doesn't have to deal with any of the pooling. It would seem that the sqlx! Transaction manager grabs a connection from the pool and holds it open while it fills up a queue with pending transactions, then commits them once you pull the trigger. My naive implementation just queues up a bunch of surql strings (maybe even validated?) and spits them out as a transaction. ~~I may add a method to easily just execute it.~~ After discussing with ChatGPT, changes were made, and things were done. 
 ```rust
 #[derive(Clone, Debug, Default)]
 pub struct QueryManager {
@@ -547,17 +543,17 @@ You don’t have to manually write a BEGIN statement: transactions are so centra
 databases that sqlx provides a dedicated API.
 By calling `begin` on our pool we acquire a connection from the pool and kick off a transaction:
 
-We're choosing to ignore getting connection from a pool since that's what cool kids do.
+We're choosing to ignore getting a connection from a pool since that's what cool kids do.
 > `begin`, if successful, returns a Transaction struct.
 A mutable reference to a Transaction implements sqlx’s Executor trait therefore it can be used to run
 queries. All queries run using a Transaction as executor become of the transaction.
 Let’s pass transaction down to insert_subscriber and store_token instead of pool:
 
-I'm lazy, so I just create the struct when we create the database which exposes an `execute` trait to murder all the transaction in its queue. Logic should still hold though, we can pass the struct down to our database functions since it's conveniently bundled up in our `AppState`. Errrmmm .... mutable state is a thing apparently.
+I'm lazy, so I just create the struct when we create the database, which exposes an `execute` trait to murder all the transactions in its queue. Logic should still hold, though; we can pass the struct down to our database functions since it's conveniently bundled up in our `AppState`. Errrmmm .... mutable state is a thing, apparently.
 
-Gnarly ... `tokio::mutex` is a thing ... this is stupid hard.
+Gnarly ... `tokio::mutex` is a thing ... this is stupidly hard.
 
-**Update**: After thinking on this a bit more, for now all of the transactions are bundled relative to a specific handler. I don't actually need the transaction manager queue to be mutable/shared across multiple handlers (that's crazy complicated and seems like an anti-pattern). I just need to create an instance of the transaction manager 'scoped' to the handler. This _should_ allow me to avoid cross thread stuff. I dunno - we'll see how it works. In non-threaded testing, it [works](https://github.com/snarkipus/surreal-thing/blob/55c385619f984d456f172abe57f1040c8ad91090/tests/queries.rs#L107-L137) as [designed](https://github.com/snarkipus/zero2axum/blob/5564b7dd48df01de4fcbf99ce5d9555e2fd66285/src/db.rs#L88-L149). Shocking, that approach worked. All tests pass - just the fly.io environment variable loose-end to chase down.
+**Update**: After thinking on this a bit more, for now all of the transactions are bundled relative to a specific handler. I don't actually need the transaction manager queue to be mutable/shared across multiple handlers (that's crazily complicated and seems like an anti-pattern). I just need to create an instance of the transaction manager 'scoped' to the handler. This _should_ allow me to avoid cross-thread stuff. I dunno - we'll see how it works. In non-threaded testing, it [works](https://github.com/snarkipus/surreal-thing/blob/55c385619f984d456f172abe57f1040c8ad91090/tests/queries.rs#L107-L137) as [designed](https://github.com/snarkipus/zero2axum/blob/5564b7dd48df01de4fcbf99ce5d9555e2fd66285/src/db.rs#L88-L149). Shocking, that approach worked. All tests pass - just the fly.io environment variable loose end to chase down.
 
 Not gonna lie - this chapter almost did me in.
 
@@ -565,10 +561,10 @@ Extra Credit:
 - [ ] TODO: What happens if a user tries to subscribe twice? Make sure that they receive two confirmation emails;
 - [ ] TODO: What happens if a user clicks on a confirmation link twice?
 - [ ] TODO: What happens if the subscription token is well-formatted but non-existent?
-- [ ] TODO: Add validation on the incoming token, we are currently passing the raw user input straight into a
+- [ ] TODO: Add validation on the incoming token; we are currently passing the raw user input straight into a
 query (thanks sqlx for protecting us from SQL injections <3);
-- [ ] TODO :Use a proper templating solution for our emails (e.g. tera);
-- [ ] TODO: At some point, it might be worth revisiting implenting `cargo-chef` instead of using `--mount=type=cache`, even if it's just to understand other alternatives to build artifact caching. 
+- [ ] TODO: Use a proper templating solution for our emails (e.g., tera);
+- [ ] TODO: At some point, it might be worth revisiting implementing `cargo-chef` instead of using `--mount=type=cache`, even if it's just to understand other alternatives to build artifact caching. 
 - See [post](https://www.reddit.com/r/rust/comments/13yafcl/comment/jmmay3h/?utm_source=share&utm_medium=web2x&context=3)
 ## Chapter 8
 
@@ -580,7 +576,7 @@ query (thanks sqlx for protecting us from SQL injections <3);
 
 ### 8.2 Operator Errors
 
-Well, somewhat stuck right out of the gate - turns out I'll have to be creative in getting SurrealDB to fail. Despite having `SCHEMAFULL` definitions, SurrealDB will accept all incoming transactions (if valid) which is a known [bug](https://github.com/surrealdb/surrealdb/issues/2060).
+Well, somewhat stuck right out of the gate - turns out I'll have to be creative in getting SurrealDB to fail. Despite having `SCHEMAFULL` definitions, SurrealDB will accept all incoming transactions (if valid), which is a known [bug](https://github.com/surrealdb/surrealdb/issues/2060).
 
 So, we'll just add which should fail since the token is a string:
 ```sql
@@ -596,7 +592,7 @@ ERROR: test/27878 on Zeus: [REQUEST - EVENT] response failed (classification="St
     file: /home/snarkipus/.cargo/registry/src/github.com-1ecc6299db9ec823/tower-http-0.4.0/src/trace/on_failure.rs
 ```
 
-In this case, I had already created a `TraceLayer` in the axum router definition:
+In this case, I had already created a `TraceLayer` in the Axum router definition:
 ```rust
         [...]
         .layer(
@@ -629,11 +625,10 @@ This section will be unique to Axum since its approach is somewhat different fro
 ---
 
 #### `sqlx` Anatomy Detour
-So, it turns out that the naive `QueryManager` is perhaps _too_ naive. It doesn't actually do what it's supposed to, namely send queries belonging to a `transaction` to the database as they arrive and then use the `commit` or `cancel` directives to handle the `transaction`.
+So, it turns out that the naive `QueryManager` is perhaps _too_ naive. It doesn't actually do what it's supposed to: send queries belonging to a `transaction` to the database as they arrive and then use the `commit` or `cancel` directives to handle the `transaction`.
 
-So, I attempted to somewhat understand how `sqlx` does it under the hood and it turns out it's pretty complicated (at least for me). Being "Database Agnostic" translates into a giant pile of traits and types which have to be implemented for a specific driver version (i.e. PostgreSQL). While I briefly (very briefly) toyed with the idea of attempting a SurrealDB derivation, it was quickly apparent that's a hard-mode option better suited to savvy devs.
-
-Some relavent notes to help me fix the naive API for the `QueryManager` ... I found the rat's nest of trait methods to be an interesting exercise.
+So, I attempted to somewhat understand how `sqlx` does it under the hood, and it turns out it's pretty complicated (at least for me). Being "Database Agnostic" translates into a giant pile of traits and types which have to be implemented for a specific driver version (i.e., PostgreSQL). While I briefly (very briefly) toyed with the idea of attempting a SurrealDB derivation, it was quickly apparent that it's a hard-mode option better suited to savvy devs.
+Here are some relevant notes to help me fix the naive API for the `QueryManager` ... I found the rat's nest of trait methods to be an interesting exercise.
 
 * **`sqlx::query!("....")` Cheatsheet**:
 
@@ -645,9 +640,9 @@ Some relavent notes to help me fix the naive API for the `QueryManager` ... I fo
 | At Least One	| `.fetch(...)` |	`impl Stream<Item = sqlx::Result<{adhoc struct}>>` |	Call `.try_next().await` to get each row result. |
 | Multiple |	`.fetch_all(...)` |	`sqlx::Result<Vec<{adhoc struct}>>` | |	
 
-\* All methods accept one of `&mut {connection type}`, `&mut Transaction` or `&Pool`.
+\* All methods accept one of `&mut {connection type}`: `&`mut Transaction` or `&Pool``.
 
-† Only callable if the query returns no columns; otherwise it’s assumed the query may return at least one row.
+† Only callable if the query returns no columns; otherwise, it’s assumed the query may return at least one row.
 
 So, like it or not, the `Query` method ([docs](https://docs.rs/surrealdb/1.0.0-beta.9+20230402/surrealdb/method/struct.Query.html)) handles all of that. There's just not a fancy way to manage transactions per se.
 
@@ -744,7 +739,7 @@ where
 }
 ```
 
-That should give us enough information to get started ... for this application, the general flow should look something like:
+That should give us enough information to get started ... for this application, the general flow should look something like this:
 
 ```mermaid
 flowchart LR
@@ -773,7 +768,7 @@ Unfortunately, the PostgreSQL implementation relies heavily on the viper's nest 
 
 ---
 
-Ok, so in the end, error handling was pretty educational. I'm sure this implementation isn't completely correct, but in the end the concepts are still sound. The solution here, borrowed from Jeremy Chone, is to use the `response_mapper` middleware component to handle the errors (if present) in a granular fashion. This does overlap somewhat with the actual `IntoResponse` impl's for the errors themselves, so I'm sure there's some duplication/waste here. One thing I certainly don't fully understand is if you pay any sort of  performance penalty for solving it this way. I'm sure the middleware doesn't come for free ... but for something like this is very likely might be appropriate. One thing of interest is the ability to craft a client response and segregate it from the server logs cleanly. This subtly was lost on me in the incredibly dense YouTube video that Jeremy did.
+Ok, so in the end, error handling was pretty educational. I'm sure this implementation isn't completely correct, but in the end the concepts are still sound. The solution here, borrowed from Jeremy Chone, is to use the `response_mapper` middleware component to handle the errors (if present) in a granular fashion. This does overlap somewhat with the actual `IntoResponse` impl's for the errors themselves, so I'm sure there's some duplication/waste here. One thing I certainly don't fully understand is if you pay any sort of performance penalty for solving it this way. I'm sure the middleware doesn't come for free ... but for something like this, it very likely might be appropriate. One thing of interest is the ability to craft a client response and segregate it from the server logs cleanly. This subtly was lost on me in the incredibly dense YouTube video that Jeremy did.
 
 ## Chapter 9: Naive Newsletter Delivery
 
@@ -791,7 +786,12 @@ flowchart TB
   end
   block1 --> block2
 ```
-No surprises here - straightforward chapter. 
+No surprises here - it's a straightforward chapter. 
 
 ## Chapter 10: Securing our API
+Early sections are straightforward - interesting wrinkle around the default `ErrorResponse` from Actix. It doesn't appear that Axum has an equivalent default.
 
+However, using Axum does give you the ability to create custom, sexy responses like [this](https://fasterthanli.me/series/updating-fasterthanli-me-for-2022/part-2?source=techstories.org#the-opinions-of-axum-also-nice-error-handling).
+* TODO: Implement customized error responses with `color-eyre` backtraces
+* TODO: Implement/correct `color-eyre::Report` for error types
+* TODO: Implement `eyre::Chain` method in place of recursive `err_chain` method
