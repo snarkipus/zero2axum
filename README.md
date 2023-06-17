@@ -845,3 +845,14 @@ impl IntoResponse for LoginError {
 }
 ```
 Shenanigans ensue! Unsurprisingly, I found the answer from Amos on [Twitter](https://twitter.com/fasterthanlime/status/1526595055653355521?s=20).
+
+- [x] TODO: HMAC Environment Variable
+```
+# You need to set the `APP_APPLICATION__HMAC_SECRET` environment variable
+# on Digital Ocean as well for production!
+```
+
+Shell Command: `openssl rand -base64 32`
+
+`flyctl secrets set APP_APPLICATION__HMAC_SECRET=RANDOM-NUMBER-GOES-HERE`
+

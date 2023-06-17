@@ -6,6 +6,7 @@ use axum::{
 use color_eyre::eyre::Context;
 use color_eyre::Result;
 use hyper::{server::conn::AddrIncoming, Body};
+use secrecy::Secret;
 use std::{net::TcpListener, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::warn;
@@ -87,7 +88,11 @@ pub struct AppState {
     pub email_client: Arc<EmailClient>,
     pub base_url: ApplicationBaseUrl,
     pub database: Database,
+    pub secret: HmacSecret,
 }
+
+#[derive(Debug, Clone)]
+pub struct HmacSecret(pub Secret<String>);
 
 impl FromRef<AppState> for Settings {
     fn from_ref(state: &AppState) -> Settings {
@@ -113,6 +118,12 @@ impl FromRef<AppState> for Database {
     }
 }
 
+impl FromRef<AppState> for HmacSecret {
+    fn from_ref(state: &AppState) -> HmacSecret {
+        state.secret.clone()
+    }
+}
+
 // endregion: -- AppState
 
 #[derive(Clone)]
@@ -126,9 +137,10 @@ pub async fn run(
 ) -> Result<ZServer> {
     let state = AppState {
         base_url: ApplicationBaseUrl(configuration.application.base_url.clone()),
-        configuration,
         email_client: Arc::new(email_client),
         database,
+        secret: HmacSecret(configuration.application.hmac_secret.clone()),
+        configuration,
     };
 
     let app = Router::new()

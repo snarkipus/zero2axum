@@ -1553,6 +1553,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "htmlescape"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9025058dae765dee5070ec375f591e2ba14638c63feff74f13805a72e523163"
+
+[[package]]
 name = "http"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3252,9 +3258,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.6"
+version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82e6b795fe2e3b1e845bafcb27aa35405c4d47cdfc92af5fc8d3002f76cebdc0"
+checksum = "479fb9d862239e610720565ca91403019f2f00410f1864c5aa7479b950a76ed8"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -4655,6 +4661,9 @@ dependencies = [
  "config",
  "fake",
  "futures-core",
+ "hex",
+ "hmac",
+ "htmlescape",
  "httpc-test",
  "hyper",
  "linkify",
@@ -4671,6 +4680,7 @@ dependencies = [
  "serde",
  "serde-aux",
  "serde_json",
+ "sha2",
  "sha3",
  "strum_macros",
  "surrealdb 1.0.0-beta.9+20230402 (git+https://github.com/surrealdb/surrealdb/?branch=main)",

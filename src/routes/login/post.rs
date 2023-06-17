@@ -1,13 +1,14 @@
 use axum::{extract::State, response::Response, Form};
 use axum_macros::debug_handler;
-use hyper::{StatusCode, Body};
-use secrecy::Secret;
+use hmac::{Hmac, Mac};
+use hyper::{Body, StatusCode};
+use secrecy::{ExposeSecret, Secret};
 
 use crate::{
     authentication::{validate_credentials, Credentials},
     db::Database,
     error::{AuthError, LoginError},
-    startup::AppState,
+    startup::{AppState, HmacSecret},
 };
 
 #[derive(serde::Deserialize)]
@@ -17,31 +18,54 @@ pub struct FormData {
 }
 
 #[debug_handler(state = AppState)]
-#[tracing::instrument(name = "Login", skip(form, database), fields(
+#[tracing::instrument(name = "Login", skip(form, database, secret), fields(
     username = tracing::field::Empty,
     user_id = tracing::field::Empty,
 ))]
 pub async fn login(
-    database: State<Database>,
-    form: Form<FormData>,
+    State(database): State<Database>,
+    State(secret): State<HmacSecret>,
+    Form(form): Form<FormData>,
 ) -> Result<Response, LoginError> {
     let credentials = Credentials {
-        username: form.0.username,
-        password: form.0.password,
+        username: form.username,
+        password: form.password,
     };
 
     tracing::Span::current().record("username", &tracing::field::display(&credentials.username));
-    let user_id = validate_credentials(credentials, &database.client)
-        .await
-        .map_err(|e| match e {
-            AuthError::InvalidCredentials(_) => LoginError::AuthError(e.into()),
-            AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into()),
-        })?;
+    match validate_credentials(credentials, &database.client).await {
+        Ok(user_id) => {
+            tracing::Span::current().record("user_id", &tracing::field::display(&user_id.id));
+            Ok(Response::builder()
+                .status(StatusCode::SEE_OTHER)
+                .header("Location", "/")
+                .body(axum::body::boxed(Body::empty()))
+                .map_err(|e| LoginError::UnexpectedError(e.into()))?)
+        }
+        Err(e) => match e {
+            AuthError::UnexpectedError(_) => Err(LoginError::UnexpectedError(e.into())),
+            AuthError::InvalidCredentials(_) => {
+                let query_string = format!("error={}", urlencoding::Encoded::new(e.to_string()));
 
-    tracing::Span::current().record("user_id", &tracing::field::display(&user_id.id));
-    Response::builder()
-        .status(StatusCode::SEE_OTHER)
-        .header("Location", "/")
-        .body(axum::body::boxed(Body::empty()))
-        .map_err(|e| LoginError::UnexpectedError(e.into()))
+                let hmac_tag = {
+                    let mut mac =
+                        Hmac::<sha2::Sha256>::new_from_slice(secret.0.expose_secret().as_bytes())
+                            .unwrap();
+                    mac.update(query_string.as_bytes());
+                    mac.finalize().into_bytes()
+                };
+
+                tracing::warn!("Login failed: {}", e);
+
+                Ok(Response::builder()
+                    .status(StatusCode::SEE_OTHER)
+                    .header(
+                        "Location",
+                        format!("/login?{query_string}&tag={hmac_tag:x}"),
+                    )
+                    .body(axum::body::boxed(Body::empty()))
+                    .map_err(|e| LoginError::UnexpectedError(e.into()))?)
+            }
+        },
+    }
 }
