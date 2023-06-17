@@ -67,5 +67,5 @@ ci = []
 
 [profile.release]
 debug = 1
-opt-level = 3
+opt-level = "z"
 lto = true
