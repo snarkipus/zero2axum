@@ -1,5 +1,5 @@
 use axum::response::{IntoResponse, Response};
-use hyper::StatusCode;
+use hyper::{StatusCode, Body};
 
 // region: -- LoginError
 #[derive(thiserror::Error)]
@@ -18,10 +18,12 @@ impl std::fmt::Debug for LoginError {
 
 impl IntoResponse for LoginError {
     fn into_response(self) -> Response {
-        match self {
-            LoginError::AuthError(_) => StatusCode::UNAUTHORIZED.into_response(),
-            LoginError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        }
+        let encoded_error = urlencoding::Encoded::new(self.to_string());
+        Response::builder()
+            .status(StatusCode::SEE_OTHER)
+            .header("Location", format!("/login?error={}", encoded_error))
+            .body(axum::body::boxed(Body::empty()))
+            .unwrap()
     }
 }
 // endregion: LoginError

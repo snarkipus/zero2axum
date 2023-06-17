@@ -1,6 +1,6 @@
-use axum::{body::Full, extract::State, response::Response, Form};
+use axum::{extract::State, response::Response, Form};
 use axum_macros::debug_handler;
-use hyper::{body::Bytes, StatusCode};
+use hyper::{StatusCode, Body};
 use secrecy::Secret;
 
 use crate::{
@@ -24,7 +24,7 @@ pub struct FormData {
 pub async fn login(
     database: State<Database>,
     form: Form<FormData>,
-) -> Result<Response<Full<Bytes>>, LoginError> {
+) -> Result<Response, LoginError> {
     let credentials = Credentials {
         username: form.0.username,
         password: form.0.password,
@@ -42,6 +42,6 @@ pub async fn login(
     Response::builder()
         .status(StatusCode::SEE_OTHER)
         .header("Location", "/")
-        .body(Full::from(""))
+        .body(axum::body::boxed(Body::empty()))
         .map_err(|e| LoginError::UnexpectedError(e.into()))
 }

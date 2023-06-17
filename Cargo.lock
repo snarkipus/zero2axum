@@ -4684,6 +4684,7 @@ dependencies = [
  "tracing-subscriber",
  "tracing-test",
  "unicode-segmentation",
+ "urlencoding",
  "uuid",
  "validator",
  "wiremock",

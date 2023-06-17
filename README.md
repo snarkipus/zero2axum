@@ -789,9 +789,59 @@ flowchart TB
 No surprises here - it's a straightforward chapter. 
 
 ## Chapter 10: Securing our API
-Early sections are straightforward - interesting wrinkle around the default `ErrorResponse` from Actix. It doesn't appear that Axum has an equivalent default.
+### Contextual Errors
+Early sections are straightforward - interesting wrinkle around the default `error_response` from Actix. It doesn't appear that Axum has an equivalent default.
+
+#### Actix `ResponseError` Trait
+
+```rust
+pub trait ResponseError: Debug + Display {
+    // Provided methods
+    fn status_code(&self) -> StatusCode { ... }
+    fn error_response(&self) -> HttpResponse<BoxBody> { ... }
+}
+```
 
 However, using Axum does give you the ability to create custom, sexy responses like [this](https://fasterthanli.me/series/updating-fasterthanli-me-for-2022/part-2?source=techstories.org#the-opinions-of-axum-also-nice-error-handling).
-* TODO: Implement customized error responses with `color-eyre` backtraces
-* TODO: Implement/correct `color-eyre::Report` for error types
-* TODO: Implement `eyre::Chain` method in place of recursive `err_chain` method
+- [ ] TODO: Implement customized error responses with `color-eyre` backtraces
+- [ ] TODO: Implement/correct `color-eyre::Report` for error types
+- [ ] TODO: Implement `eyre::Chain` method in place of recursive `err_chain` method
+
+#### Actix Implementation
+```rust
+impl ResponseError for LoginError {
+    fn error_response(&self) -> HttpResponse {
+        let encoded_error = urlencoding::Encoded::new(self.to_string());
+        HttpResponse::build(self.status_code())
+            .insert_header((LOCATION, format!("/login?error={}", encoded_error)))
+            .finish()
+    }
+
+    fn status_code(&self) -> StatusCode {
+        StatusCode::SEE_OTHER
+    }
+}
+```
+
+#### Axum `IntoResponse` Trait
+```rust
+pub trait IntoResponse {
+    // Required method
+    fn into_response(self) -> Response<UnsyncBoxBody<Bytes, Error>>;
+}
+```
+
+#### Axum Implementation
+```rust
+impl IntoResponse for LoginError {
+    fn into_response(self) -> Response {
+        let encoded_error = urlencoding::Encoded::new(self.to_string());
+        Response::builder()
+            .status(StatusCode::SEE_OTHER)
+            .header("Location", format!("/login?error={}", encoded_error))
+            .body(axum::body::boxed(Body::empty())) // <--- shenanigans
+            .unwrap()
+    }
+}
+```
+Shenanigans ensue! Unsurprisingly, I found the answer from Amos on [Twitter](https://twitter.com/fasterthanlime/status/1526595055653355521?s=20).
