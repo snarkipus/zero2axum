@@ -153,7 +153,7 @@ impl TestUser {
     #[tracing::instrument(name = "Store test user in database", skip(conn))]
     async fn store(&self, conn: &Surreal<Client>) {
         let salt = SaltString::generate(&mut rand::thread_rng());
-        
+
         let password_hash = Argon2::new(
             Algorithm::Argon2id,
             Version::V0x13,

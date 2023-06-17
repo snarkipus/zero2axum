@@ -7,17 +7,18 @@ use axum_macros::debug_handler;
 use base64::Engine;
 use color_eyre::eyre::Context;
 use hyper::{HeaderMap, StatusCode};
-use secrecy:: Secret;
+use secrecy::Secret;
 use serde::Deserialize;
 use std::sync::Arc;
 use surrealdb::{engine::remote::ws::Client, Surreal};
 
-use crate::{error::AuthError, authentication::Credentials};
 #[allow(unused_imports)]
 use crate::{
-    db::Database, domain::SubscriberEmail, email_client::EmailClient, error::PublishError,
-    startup::AppState, telemetry::spawn_block_with_tracing, authentication::validate_credentials,
+    authentication::validate_credentials, db::Database, domain::SubscriberEmail,
+    email_client::EmailClient, error::PublishError, startup::AppState,
+    telemetry::spawn_block_with_tracing,
 };
+use crate::{authentication::Credentials, error::AuthError};
 
 #[derive(Deserialize)]
 pub struct BodyData {
@@ -86,8 +87,6 @@ pub async fn publish_newsletter(
     Ok(StatusCode::OK.into_response())
 }
 // endregion: -- /newsletters handler
-
-
 
 // region: -- Basic Authentication
 #[tracing::instrument(name = "Basic Authentication", skip(headers))]

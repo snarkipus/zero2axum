@@ -1,8 +1,8 @@
 use crate::helpers::{spawn_app, ConfirmationLinks, TestApp};
 use rstest::rstest;
+use uuid::Uuid;
 use wiremock::matchers::{any, method, path};
 use wiremock::{Mock, ResponseTemplate};
-use uuid::Uuid;
 
 #[tokio::test]
 async fn invalid_password_is_rejected() {
