@@ -44,7 +44,5 @@ surreal import --conn http://localhost:8000 -u surreal -p password --ns default 
 surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101704_create_subscription_tokens_table.surql
 surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101705_create_users_table.surql
 surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101706_rename_password_column.surql
-# surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101707_add_salt_to_users.surql
-# surreal import --conn http://localhost:8000 -u surreal -p password --ns default --db newsletter schemas/20230613_101708_remove_salt_from_users.surql
 
 >&2 echo "SurrealDB migrations applied! Let's Go!!!!"

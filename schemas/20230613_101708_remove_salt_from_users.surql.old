@@ -1,4 +1,0 @@
-BEGIN;
-REMOVE FIELD salt ON users;
-UPDATE users SET salt = NONE;
-COMMIT;
