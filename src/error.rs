@@ -4,7 +4,7 @@ use hyper::StatusCode;
 // region: -- LoginError
 #[derive(thiserror::Error)]
 pub enum LoginError {
-    #[error("Authentication Failed.")]
+    #[error("Authentication failed.")]
     AuthError(#[source] color_eyre::eyre::Error),
     #[error("Something went wrong.")]
     UnexpectedError(#[from] color_eyre::eyre::Error),

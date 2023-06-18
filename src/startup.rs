@@ -8,6 +8,7 @@ use color_eyre::Result;
 use hyper::{server::conn::AddrIncoming, Body};
 use secrecy::Secret;
 use std::{net::TcpListener, sync::Arc};
+use tower_cookies::CookieManagerLayer;
 use tower_http::trace::TraceLayer;
 use tracing::warn;
 use uuid::Uuid;
@@ -151,6 +152,7 @@ pub async fn run(
         .route("/subscribe", post(routes::handler_subscribe))
         .route("/subscribe/confirm", get(handler_confirm))
         .route("/newsletters", post(routes::publish_newsletter))
+        .layer(CookieManagerLayer::new())
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
                 let uuid = Uuid::new_v4();

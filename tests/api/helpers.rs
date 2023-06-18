@@ -37,11 +37,41 @@ pub struct TestApp {
     pub email_server: MockServer,
     pub database: Database,
     pub test_user: TestUser,
+    pub api_client: reqwest::Client,
 }
 
 impl TestApp {
+    pub async fn get_login_html(&self) -> String {
+        self.api_client
+            .get(&format!(
+                "http://{}:{}/login",
+                &self.configuration.application.host, &self.configuration.application.port
+            ))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+            .text()
+            .await
+            .expect("Failed to get response text.")
+    }
+
+    pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!(
+                "http://{}:{}/login",
+                &self.configuration.application.host, &self.configuration.application.port
+            ))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
     pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(&format!(
                 "http://{}:{}/subscribe",
                 &self.configuration.application.host, &self.configuration.application.port
@@ -78,7 +108,7 @@ impl TestApp {
     }
 
     pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(&format!(
                 "http://{}:{}/newsletters",
                 &self.configuration.application.host, &self.configuration.application.port
@@ -91,9 +121,20 @@ impl TestApp {
     }
 }
 
+pub fn assert_is_redirect_to(response: &reqwest::Response, location: &str) {
+    assert_eq!(response.status().as_u16(), 303);
+    assert_eq!(response.headers().get("Location").unwrap(), location);
+}
+
 #[allow(clippy::let_underscore_future)]
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .cookie_store(true)
+        .build()
+        .unwrap();
 
     let email_server = MockServer::start().await;
 
@@ -127,6 +168,7 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         database,
         test_user: TestUser::generate(),
+        api_client: client,
     };
     test_app.test_user.store(&test_app.database.client).await;
     // add_test_user(&test_app.database.client).await;

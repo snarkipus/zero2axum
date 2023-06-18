@@ -1,14 +1,14 @@
 use axum::{extract::State, response::Response, Form};
 use axum_macros::debug_handler;
-use hmac::{Hmac, Mac};
 use hyper::{Body, StatusCode};
-use secrecy::{ExposeSecret, Secret};
+use secrecy::Secret;
+use tower_cookies::{Cookie, Cookies};
 
 use crate::{
     authentication::{validate_credentials, Credentials},
     db::Database,
     error::{AuthError, LoginError},
-    startup::{AppState, HmacSecret},
+    startup::AppState,
 };
 
 #[derive(serde::Deserialize)]
@@ -18,13 +18,13 @@ pub struct FormData {
 }
 
 #[debug_handler(state = AppState)]
-#[tracing::instrument(name = "Login", skip(form, database, secret), fields(
+#[tracing::instrument(name = "Login", skip(form, cookies, database), fields(
     username = tracing::field::Empty,
     user_id = tracing::field::Empty,
 ))]
 pub async fn login(
     State(database): State<Database>,
-    State(secret): State<HmacSecret>,
+    cookies: Cookies,
     Form(form): Form<FormData>,
 ) -> Result<Response, LoginError> {
     let credentials = Credentials {
@@ -45,24 +45,12 @@ pub async fn login(
         Err(e) => match e {
             AuthError::UnexpectedError(_) => Err(LoginError::UnexpectedError(e.into())),
             AuthError::InvalidCredentials(_) => {
-                let query_string = format!("error={}", urlencoding::Encoded::new(e.to_string()));
-
-                let hmac_tag = {
-                    let mut mac =
-                        Hmac::<sha2::Sha256>::new_from_slice(secret.0.expose_secret().as_bytes())
-                            .unwrap();
-                    mac.update(query_string.as_bytes());
-                    mac.finalize().into_bytes()
-                };
-
-                tracing::warn!("Login failed: {}", e);
+                let err = LoginError::AuthError(e.into());
+                cookies.add(Cookie::new("_flash", err.to_string()));
 
                 Ok(Response::builder()
                     .status(StatusCode::SEE_OTHER)
-                    .header(
-                        "Location",
-                        format!("/login?{query_string}&tag={hmac_tag:x}"),
-                    )
+                    .header("Location", "/login")
                     .body(axum::body::boxed(Body::empty()))
                     .map_err(|e| LoginError::UnexpectedError(e.into()))?)
             }

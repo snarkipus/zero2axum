@@ -856,3 +856,45 @@ Shell Command: `openssl rand -base64 32`
 
 `flyctl secrets set APP_APPLICATION__HMAC_SECRET=RANDOM-NUMBER-GOES-HERE`
 
+NOTE: I do feel like we're missing some sort of testing here. Perhaps this is where end-to-end testing would be ideal. I'm assuming if it existed in the Rust ecosystem that Luca would have included it - but I do wonder what it would look like.
+
+### Cookies
+Ask, and ye shall receive. Tests!
+
+Of interest, though, is that Axum doesn't have a dedicated `cookie` API. We will have to use the `tower-cookies` crate. This ends up being almost silly (and somewhat magical). Just add a layer for the `CookieManager`, and then you can access the cookie jar from the handler directly to create a new cookie.
+
+```rust
+//! src/startup.rs
+use tower_cookies::CookieManagerLayer;
+[...]
+
+pub async fn run(
+    listener: TcpListener,
+    configuration: Settings,
+    email_client: EmailClient,
+    database: Database,
+) -> Result<ZServer> {
+    [...]
+    let app = Router::new()
+        [...]
+        .layer(CookieManagerLayer::new())
+        [...]
+
+    Ok(server)
+}
+```
+```rust
+//! src/routes/login/post.rs
+use tower_cookies::{Cookie, Cookies};
+[...]
+
+pub async fn login(
+    State(database): State<Database>,
+    cookies: Cookies,
+    Form(form): Form<FormData>,
+) -> Result<Response, LoginError> {
+    [...]
+    cookies.add(Cookie::new("_flash", err.to_string()));
+    [...]
+}
+```
