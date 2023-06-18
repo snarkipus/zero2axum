@@ -1,17 +1,23 @@
-use axum::response::Response;
+use axum::{extract::State, response::Response};
 use axum_macros::debug_handler;
 
 use hyper::Body;
-use tower_cookies::Cookies;
+use secrecy::ExposeSecret;
+use tower_cookies::{Cookie, Cookies, Key};
+
+use crate::startup::HmacSecret;
 
 #[debug_handler]
-pub async fn login_form(cookies: Cookies) -> Response {
-    let error_html = match cookies.get("_flash") {
+pub async fn login_form(cookies: Cookies, State(secret): State<HmacSecret>) -> Response {
+    let key = Key::from(secret.0.expose_secret().as_bytes());
+    let private_cookies = cookies.private(&key);
+    let error_html = match private_cookies.get("_flash") {
         Some(flash_cookie) => {
             format!(r#"<p class="error"><i>{}</i></p>"#, flash_cookie.value())
         }
         None => "".to_string(),
     };
+    private_cookies.remove(Cookie::new("_flash", ""));
 
     Response::builder()
         .header("Content-Type", "text/html; charset=utf-8")

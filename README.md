@@ -861,7 +861,7 @@ NOTE: I do feel like we're missing some sort of testing here. Perhaps this is wh
 ### Cookies
 Ask, and ye shall receive. Tests!
 
-Of interest, though, is that Axum doesn't have a dedicated `cookie` API. We will have to use the `tower-cookies` crate. This ends up being almost silly (and somewhat magical). Just add a layer for the `CookieManager`, and then you can access the cookie jar from the handler directly to create a new cookie.
+Of interest, though, is that Axum doesn't have a dedicated `cookie` API. We will have to use the `tower-cookies` crate. This ends up being almost silly (and somewhat magical). Add a layer for the `CookieManager`, and then you can access the cookie jar from the handler directly to create a new cookie.
 
 ```rust
 //! src/startup.rs
@@ -898,3 +898,83 @@ pub async fn login(
     [...]
 }
 ```
+```rust
+//! src/routes/login/get.rs
+use tower_cookies::{Cookie, Cookies}
+[...]
+
+pub async fn login_form(cookies: Cookies) -> Response {
+    let error_html = match cookies.get("_flash") {
+        Some(flash_cookie) => {
+            format!(r#"<p class="error"><i>{}</i></p>"#, flash_cookie.value())
+        }
+        None => "".to_string(),
+    };
+    let mut expired_cookie = Cookie::new("_flash", "");
+    expired_cookie.make_removal();
+    cookies.add(expired_cookie);
+
+    Response::builder()
+        .header("Content-Type", "text/html; charset=utf-8")
+        // Github Copilot did super sexy shit here
+        .body(axum::body::boxed(Body::from(format!(/*HTML*/, error_html))))
+        .unwrap()
+}
+```
+
+#### Flash Messages 
+
+Well, Axum doesn't have a corresponding crate that bakes in all of the features of `actix-web-flash-messages`. Not being intimately knowledgeable about this domain, I'm not sure if that's to be expected or not. It certainly seems feasible to extend something like `tower-cookies` to make a middleware that does that sort of heavy lifting. Since this exercise doesn't seem to involve heavy use of the crate (yet), we'll just use the `PrivateCookies` feature of the `tower-cookies` crate for now.
+
+`PrivateCookies`([docs](https://docs.rs/tower-cookies/latest/tower_cookies/struct.PrivateCookies.html)):
+> A cookie jar that provides authenticated encryption for its cookies.
+>
+>A private child jar signs and encrypts all the cookies added to it and verifies and decrypts cookies retrieved from it. Any cookies stored in PrivateCookies are simultaneously assured confidentiality, integrity, and authenticity. In other words, clients cannot discover nor tamper with the contents of a cookie, nor can they fabricate cookie data.
+
+Note: We need to enable the `signed` and `private` features of the `tower-cookies` crate.
+`tower-cookies = { version = "0.9.0", features = ["signed", "private"] }`
+
+```rust
+//! src/routes/login/post.rs
+use tower_cookies::{Cookie, Cookies, Key};
+[...]
+
+pub async fn login(
+    State(database): State<Database>,
+    State(secret): State<HmacSecret>,
+    cookies: Cookies,
+    Form(form): Form<FormData>,
+) -> Result<Response, LoginError> {
+    [...]
+    let key = Key::from(secret.0.expose_secret().as_bytes());
+    let private_cookies = cookies.private(&key);
+    private_cookies.add(Cookie::new("_flash", err.to_string()));
+    [...]
+}
+```
+```rust
+//! src/routes/login/get.rs
+use tower_cookies::{Cookie, Cookies, Key}
+[...]
+
+pub async fn login_form(cookies: Cookies, State(secret): State<HmacSecret>) -> Response {
+    let key = Key::from(secret.0.expose_secret().as_bytes());
+    let private_cookies = cookies.private(&key);
+    let error_html = match private_cookies.get("_flash") {
+        Some(flash_cookie) => {
+            format!(r#"<p class="error"><i>{}</i></p>"#, flash_cookie.value())
+        }
+        None => "".to_string(),
+    };
+    private_cookies.remove(Cookie::new("_flash", ""));
+
+    Response::builder()
+        .header("Content-Type", "text/html; charset=utf-8")
+        // Github Copilot did super sexy shit here
+        .body(axum::body::boxed(Body::from(format!(/*HTML*/, error_html))))
+        .unwrap()
+}
+```
+
+
+

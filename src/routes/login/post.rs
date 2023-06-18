@@ -1,14 +1,14 @@
 use axum::{extract::State, response::Response, Form};
 use axum_macros::debug_handler;
 use hyper::{Body, StatusCode};
-use secrecy::Secret;
-use tower_cookies::{Cookie, Cookies};
+use secrecy::{Secret, ExposeSecret};
+use tower_cookies::{Cookie, Cookies, Key};
 
 use crate::{
     authentication::{validate_credentials, Credentials},
     db::Database,
     error::{AuthError, LoginError},
-    startup::AppState,
+    startup::{AppState, HmacSecret},
 };
 
 #[derive(serde::Deserialize)]
@@ -24,6 +24,7 @@ pub struct FormData {
 ))]
 pub async fn login(
     State(database): State<Database>,
+    State(secret): State<HmacSecret>,
     cookies: Cookies,
     Form(form): Form<FormData>,
 ) -> Result<Response, LoginError> {
@@ -46,8 +47,11 @@ pub async fn login(
             AuthError::UnexpectedError(_) => Err(LoginError::UnexpectedError(e.into())),
             AuthError::InvalidCredentials(_) => {
                 let err = LoginError::AuthError(e.into());
-                cookies.add(Cookie::new("_flash", err.to_string()));
-
+                let key = Key::from(secret.0.expose_secret().as_bytes());
+                let private_cookies = cookies.private(&key);
+                private_cookies.add(Cookie::new("_flash", err.to_string()));
+                
+                tracing::warn!(err = ?err, "Invalid credentials");
                 Ok(Response::builder()
                     .status(StatusCode::SEE_OTHER)
                     .header("Location", "/login")
