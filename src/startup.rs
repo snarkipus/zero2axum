@@ -3,6 +3,7 @@ use axum::{
     routing::{get, post, IntoMakeService},
     Router, Server,
 };
+// use axum_session::{SessionLayer, SessionStore};
 use color_eyre::eyre::Context;
 use color_eyre::Result;
 use hyper::{server::conn::AddrIncoming, Body};
@@ -144,6 +145,8 @@ pub async fn run(
         configuration,
     };
 
+    // let redis_client = redis::Client::open(configuration.redis_uri.expose_secret()).unwrap();
+
     let app = Router::new()
         .route("/", get(routes::home))
         .route("/login", get(routes::login_form))
@@ -153,6 +156,7 @@ pub async fn run(
         .route("/subscribe/confirm", get(handler_confirm))
         .route("/newsletters", post(routes::publish_newsletter))
         .layer(CookieManagerLayer::new())
+        // .layer(SessionLayer::new(todo!()))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &hyper::Request<Body>| {
                 let uuid = Uuid::new_v4();

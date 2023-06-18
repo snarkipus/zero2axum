@@ -107,8 +107,12 @@ default/03358854-c64b-4218-ac5e-0a9f0ef6d9e0> SELECT * FROM subscriptions;
 | color_eyre | [0.6.2](https://docs.rs/color-eyre/0.6.2/color_eyre/) |
 | rstest | [0.17.0](https://docs.rs/rstest/0.17.0/rstest/) |
 | surrealdb | [1.0.0-beta.9](https://docs.rs/surrealdb/1.0.0-beta.9+20230402/surrealdb/) |
+| surrealdb-migrations* | [0.9.5](https://docs.rs/surrealdb-migrations/0.9.5/surrealdb_migrations/index.html) |
+| tower-cookies | [0.9.0](https://docs.rs/tower-cookies/latest/tower_cookies/index.html) |
+| axum-sessions | [0.2.3](https://docs.rs/axum_session/latest/axum_session/#) |
 
-
+\*surrealdb-migrations is stuck 0.9.5 until I refactor everything to update to the latest crate due to breaking changes - waiting for the upstream SurrealDB beta 10 release 
+- [ ] TODO: Upgrade `surrealdb-migrations` to latest version w/SurrealDB Beta 10
 
 ## Chapter 1
 - Toolchain: 1.69.0
@@ -931,8 +935,15 @@ Well, Axum doesn't have a corresponding crate that bakes in all of the features 
 >
 >A private child jar signs and encrypts all the cookies added to it and verifies and decrypts cookies retrieved from it. Any cookies stored in PrivateCookies are simultaneously assured confidentiality, integrity, and authenticity. In other words, clients cannot discover nor tamper with the contents of a cookie, nor can they fabricate cookie data.
 
-Note: We need to enable the `signed` and `private` features of the `tower-cookies` crate.
-`tower-cookies = { version = "0.9.0", features = ["signed", "private"] }`
+Notes: 
+ - We need to enable the `signed` and `private` features of the `tower-cookies` crate.
+
+    `tower-cookies = { version = "0.9.0", features = ["signed", "private"] }`
+ - the `Key` object expects a 512-bit random seed, so we need to update our HMAC secret
+
+    key: `openssl rand -base64 64`
+    
+    CD: `flyctl secrets set APP_APPLICATION__HMAC_SECRET=NEW-RANDOM-NUMBER-GOES-HERE`
 
 ```rust
 //! src/routes/login/post.rs
@@ -975,6 +986,14 @@ pub async fn login_form(cookies: Cookies, State(secret): State<HmacSecret>) -> R
         .unwrap()
 }
 ```
+---
+
+### Sessions
+
+For this section, we're going to actually follow the book and use Redis. While it's entirely possible (and perhaps smarter?) to use an in-memory instance of SurrealDB, I'd personally like to touch as much different technology as possible.
+
+So, we're going to attempt to use the `axum-sessions` crate with redis support.
+
 
 
 

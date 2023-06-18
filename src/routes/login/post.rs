@@ -1,7 +1,7 @@
 use axum::{extract::State, response::Response, Form};
 use axum_macros::debug_handler;
 use hyper::{Body, StatusCode};
-use secrecy::{Secret, ExposeSecret};
+use secrecy::{ExposeSecret, Secret};
 use tower_cookies::{Cookie, Cookies, Key};
 
 use crate::{
@@ -50,7 +50,7 @@ pub async fn login(
                 let key = Key::from(secret.0.expose_secret().as_bytes());
                 let private_cookies = cookies.private(&key);
                 private_cookies.add(Cookie::new("_flash", err.to_string()));
-                
+
                 tracing::warn!(err = ?err, "Invalid credentials");
                 Ok(Response::builder()
                     .status(StatusCode::SEE_OTHER)
